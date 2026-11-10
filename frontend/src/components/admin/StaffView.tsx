@@ -147,8 +147,8 @@ export function StaffView() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((s) => (
-            <Card key={s.id} className="flex flex-col p-6">
-              <div className="flex items-start gap-4">
+            <Card key={s.id} className="flex h-full flex-col p-6">
+              <div className="flex min-h-16 items-start gap-4">
                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-line bg-cream">
                   {s.imageUrl ? (
                     <MediaImage src={s.imageUrl} alt={s.name} fill sizes="64px" className="object-cover" />
@@ -167,14 +167,14 @@ export function StaffView() {
                   <p className="truncate text-xs text-stone">{s.email}</p>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-1">
+              <div className="mt-4 min-h-11 content-start flex flex-wrap gap-1">
                 {s.services.slice(0, 4).map((x) => (
                   <span key={x.serviceId} className="bg-cream px-2 py-0.5 text-[0.65rem] text-stone">{x.service.nameSv}</span>
                 ))}
                 {s.services.length > 4 && <span className="px-2 py-0.5 text-[0.65rem] text-stone-light">+{s.services.length - 4}</span>}
                 {s.services.length === 0 && <span className="text-xs text-stone-light">{tr('Inga tjänster tilldelade')}</span>}
               </div>
-              <div className="mt-4 flex items-center gap-2 border-t border-line pt-4">
+              <div className="mt-auto flex items-center gap-2 border-t border-line pt-4">
                 <Button variant="outline" onClick={() => openEdit(s)} className="flex-1 px-3 py-1.5 text-xs"><Pencil size={13} /> Redigera</Button>
                 <Button variant="outline" onClick={() => setSchedule({ id: s.id, name: s.name })} className="flex-1 px-3 py-1.5 text-xs"><CalendarClock size={13} /> Schema</Button>
                 <button onClick={() => deactivate(s)} aria-label={tr('Avaktivera')} className="p-2 text-stone hover:text-[#b23b3b]"><UserX size={16} strokeWidth={1.5} /></button>
