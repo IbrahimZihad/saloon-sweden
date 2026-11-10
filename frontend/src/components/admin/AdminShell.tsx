@@ -68,7 +68,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         ))}
       </nav>
       <div className="border-t border-ivory/10 px-6 py-5">
-        <div className="mb-4 flex items-center gap-3 text-xs text-ivory/60" role="group" aria-label="Language">
+        <div className="mb-4 flex items-center gap-3 text-xs text-ivory/60" role="group" aria-label={lang === 'sv' ? 'Språk' : 'Language'}>
           <button
             type="button"
             onClick={() => setLang('sv')}

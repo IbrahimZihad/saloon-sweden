@@ -57,7 +57,7 @@ export default function AdminLoginPage() {
           <span className="mx-auto flex h-14 w-14 items-center justify-center border border-gold/40 bg-ivory text-gold-dark">
             <Lock size={22} strokeWidth={1.4} />
           </span>
-          <div className="mt-6 flex justify-center gap-3 text-xs text-stone" role="group" aria-label="Language">
+          <div className="mt-6 flex justify-center gap-3 text-xs text-stone" role="group" aria-label={lang === 'sv' ? 'Språk' : 'Language'}>
             <button type="button" onClick={() => setLang('sv')} aria-pressed={lang === 'sv'} className={lang === 'sv' ? 'text-gold-dark' : undefined}>SV</button>
             <span aria-hidden="true">/</span>
             <button type="button" onClick={() => setLang('en')} aria-pressed={lang === 'en'} className={lang === 'en' ? 'text-gold-dark' : undefined}>EN</button>
