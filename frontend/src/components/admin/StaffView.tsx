@@ -18,6 +18,7 @@ import {
 import { StaffScheduleModal } from '@/components/admin/StaffScheduleModal';
 import { MediaImage } from '@/components/ui/MediaImage';
 import { useAdminText } from '@/lib/admin-i18n';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { AdminService, AdminStaff } from '@/lib/types';
 
 interface FormState {
@@ -46,6 +47,7 @@ const EMPTY: FormState = {
 
 export function StaffView() {
   const tr = useAdminText();
+  const { lang } = useLanguage();
   const [items, setItems] = useState<AdminStaff[] | null>(null);
   const [services, setServices] = useState<AdminService[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -163,13 +165,15 @@ export function StaffView() {
                     <h2 className="truncate font-serif text-xl text-ink">{s.name}</h2>
                     {!s.active && <span className="shrink-0 text-[0.6rem] uppercase tracking-wide text-stone-light">{tr('Inaktiv')}</span>}
                   </div>
-                  <p className="text-sm text-gold-dark">{s.jobTitle}</p>
+                  <p className="line-clamp-2 min-h-10 text-sm leading-5 text-gold-dark">{s.jobTitle}</p>
                   <p className="truncate text-xs text-stone">{s.email}</p>
                 </div>
               </div>
               <div className="mt-4 min-h-11 content-start flex flex-wrap gap-1">
                 {s.services.slice(0, 4).map((x) => (
-                  <span key={x.serviceId} className="bg-cream px-2 py-0.5 text-[0.65rem] text-stone">{x.service.nameSv}</span>
+                  <span key={x.serviceId} className="bg-cream px-2 py-0.5 text-xs text-stone">
+                    {lang === 'en' ? x.service.nameEn || x.service.nameSv : x.service.nameSv}
+                  </span>
                 ))}
                 {s.services.length > 4 && <span className="px-2 py-0.5 text-[0.65rem] text-stone-light">+{s.services.length - 4}</span>}
                 {s.services.length === 0 && <span className="text-xs text-stone-light">{tr('Inga tjänster tilldelade')}</span>}
@@ -231,7 +235,9 @@ export function StaffView() {
                       checked={form.serviceIds.includes(svc.id)}
                       onChange={() => toggleService(svc.id)}
                     />
-                    <span className={svc.active ? '' : 'text-stone-light'}>{svc.nameSv}{!svc.active && ' (dold)'}</span>
+                    <span className={svc.active ? '' : 'text-stone-light'}>
+                      {lang === 'en' ? svc.nameEn || svc.nameSv : svc.nameSv}{!svc.active && ` (${tr('Dold').toLowerCase()})`}
+                    </span>
                   </label>
                 ))}
               </div>

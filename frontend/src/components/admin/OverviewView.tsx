@@ -158,8 +158,8 @@ function Stat({
         <Icon size={19} strokeWidth={1.5} />
       </span>
       <div className="min-w-0">
-        <p className="text-xs uppercase tracking-[0.12em] text-stone-light">{label}</p>
-        <p className="mt-1 truncate font-serif text-2xl text-ink">{value}</p>
+        <p className="min-h-5 text-sm leading-5 text-stone">{label}</p>
+        <p className="mt-1 truncate text-2xl font-semibold leading-8 tabular-nums text-ink">{value}</p>
       </div>
     </Card>
   );

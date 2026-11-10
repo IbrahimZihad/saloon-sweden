@@ -153,7 +153,7 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
 export function StatusBadge({ status }: { status: AppointmentStatus }) {
   const tr = useAdminText();
   return (
-    <span className={cn('inline-block px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.1em]', STATUS_STYLES[status])}>
+    <span className={cn('inline-block px-2.5 py-1 text-xs font-medium', STATUS_STYLES[status])}>
       {tr(STATUS_LABELS[status])}
     </span>
   );
