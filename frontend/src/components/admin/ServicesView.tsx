@@ -19,6 +19,8 @@ import {
 } from '@/components/admin/ui';
 import { MediaImage } from '@/components/ui/MediaImage';
 import { formatDuration, formatMoney } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { AdminService, ServiceCategory } from '@/lib/types';
 
 interface FormState {
@@ -50,6 +52,7 @@ const EMPTY: FormState = {
 };
 
 export function ServicesView() {
+  const { lang } = useLanguage();
   const [items, setItems] = useState<AdminService[] | null>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [filter, setFilter] = useState('');
@@ -154,7 +157,7 @@ export function ServicesView() {
         <div className="mb-4 flex flex-wrap gap-2">
           <FilterChip label="Alla" active={filter === ''} onClick={() => setFilter('')} />
           {categories.map((c) => (
-            <FilterChip key={c.id} label={c.nameSv} active={filter === c.id} onClick={() => setFilter(c.id)} />
+            <FilterChip key={c.id} label={lang === 'en' ? c.nameEn : c.nameSv} active={filter === c.id} onClick={() => setFilter(c.id)} />
           ))}
         </div>
       )}
@@ -188,12 +191,12 @@ export function ServicesView() {
                         </div>
                       )}
                       <div>
-                        <span className="text-ink">{s.nameSv}</span>
-                        <span className="block text-xs text-stone-light">{s.nameEn}</span>
+                        <span className="text-ink">{lang === 'en' ? s.nameEn : s.nameSv}</span>
+                        <span className="block text-xs text-stone-light">{lang === 'en' ? s.nameSv : s.nameEn}</span>
                       </div>
                     </div>
                   </Td>
-                  <Td className="text-stone">{s.category?.nameSv}</Td>
+                  <Td className="text-stone">{lang === 'en' ? s.category?.nameEn : s.category?.nameSv}</Td>
                   <Td className="text-right tabular-nums text-ink">{formatMoney(s.price)}</Td>
                   <Td className="text-center tabular-nums text-stone">{formatDuration(s.durationMinutes)}</Td>
                   <Td className="text-center tabular-nums text-stone">{s._count?.staff ?? 0}</Td>
@@ -223,7 +226,7 @@ export function ServicesView() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Kategori">
               <select className="field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.nameSv}</option>)}
+                {categories.map((c) => <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameSv}</option>)}
               </select>
             </Field>
             {editing === 'new' ? (
@@ -274,6 +277,7 @@ export function ServicesView() {
 }
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  const tr = useAdminText();
   return (
     <button
       onClick={onClick}
@@ -283,7 +287,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
           : 'border border-line bg-white px-4 py-1.5 text-xs uppercase tracking-[0.1em] text-stone hover:border-gold/50'
       }
     >
-      {label}
+      {tr(label)}
     </button>
   );
 }

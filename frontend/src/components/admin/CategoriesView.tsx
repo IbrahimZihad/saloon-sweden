@@ -16,6 +16,7 @@ import {
   Th,
   Toggle,
 } from '@/components/admin/ui';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { ServiceCategory } from '@/lib/types';
 
 type AdminCategory = ServiceCategory & { _count?: { services: number } };
@@ -31,6 +32,7 @@ interface FormState {
 const EMPTY: FormState = { slug: '', nameSv: '', nameEn: '', sortOrder: 0, active: true };
 
 export function CategoriesView() {
+  const tr = useAdminText();
   const [items, setItems] = useState<AdminCategory[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminCategory | 'new' | null>(null);
@@ -80,7 +82,7 @@ export function CategoriesView() {
   }
 
   async function remove(c: AdminCategory) {
-    if (!confirm(`Ta bort kategorin "${c.nameSv}"? Detta går endast om den saknar tjänster.`)) return;
+    if (!confirm(tr(`Ta bort kategorin "{name}"? Detta går endast om den saknar tjänster.`).replace('{name}', c.nameSv))) return;
     setDeleting(c.id);
     setError(null);
     try {
@@ -136,13 +138,13 @@ export function CategoriesView() {
                   </Td>
                   <Td className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(c)} aria-label="Redigera" className="p-2 text-stone hover:text-ink">
+                      <button onClick={() => openEdit(c)} aria-label={tr('Redigera')} className="p-2 text-stone hover:text-ink">
                         <Pencil size={15} strokeWidth={1.5} />
                       </button>
                       <button
                         onClick={() => remove(c)}
                         disabled={deleting === c.id}
-                        aria-label="Ta bort"
+                        aria-label={tr('Ta bort')}
                         className="p-2 text-stone hover:text-[#b23b3b] disabled:opacity-40"
                       >
                         <Trash2 size={15} strokeWidth={1.5} />

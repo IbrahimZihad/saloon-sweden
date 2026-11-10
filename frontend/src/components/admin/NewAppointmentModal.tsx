@@ -6,6 +6,7 @@ import { adminApi, type CreateAdminAppointmentInput } from '@/lib/admin-api';
 import { SlotPicker } from '@/components/admin/SlotPicker';
 import { ErrorNote, Field, Modal } from '@/components/admin/ui';
 import { cn } from '@/lib/utils';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { AdminService, AdminStaff, Appointment, AppointmentSource, AppointmentStatus, TimeSlot } from '@/lib/types';
 
 interface NewAppointmentModalProps {
@@ -17,6 +18,7 @@ interface NewAppointmentModalProps {
 }
 
 export function NewAppointmentModal({ open, onClose, onCreated, services, staff }: NewAppointmentModalProps) {
+  const tr = useAdminText();
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState('');
   const [slot, setSlot] = useState<TimeSlot | null>(null);
@@ -67,7 +69,7 @@ export function NewAppointmentModal({ open, onClose, onCreated, services, staff 
     <Modal open={open} onClose={onClose} title="Ny bokning (telefon/admin)" wide>
       <form onSubmit={submit} className="space-y-6">
         <div>
-          <label className="field-label">Tjänster</label>
+          <label className="field-label">{tr('Tjänster')}</label>
           <div className="grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
             {services.filter((s) => s.active).map((s) => (
               <label key={s.id} className={cn('flex cursor-pointer items-center gap-2 border px-3 py-2 text-sm', serviceIds.includes(s.id) ? 'border-gold bg-cream' : 'border-line')}>
@@ -85,7 +87,7 @@ export function NewAppointmentModal({ open, onClose, onCreated, services, staff 
 
         <Field label="Stylist">
           <select className="field" value={staffId} onChange={(e) => { setStaffId(e.target.value); setSlot(null); }}>
-            <option value="">Välj stylist…</option>
+            <option value="">{tr('Välj stylist…')}</option>
             {qualified.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </Field>
@@ -98,15 +100,15 @@ export function NewAppointmentModal({ open, onClose, onCreated, services, staff 
           <Field label="Telefon"><input className="field" required value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
           <Field label="Källa">
             <select className="field" value={source} onChange={(e) => setSource(e.target.value as AppointmentSource)}>
-              <option value="PHONE">Telefon</option>
-              <option value="ADMIN">Admin</option>
-              <option value="ONLINE">Online</option>
+              <option value="PHONE">{tr('Telefon')}</option>
+              <option value="ADMIN">{tr('Admin')}</option>
+              <option value="ONLINE">{tr('Online')}</option>
             </select>
           </Field>
           <Field label="Status">
             <select className="field" value={status} onChange={(e) => setStatus(e.target.value as AppointmentStatus)}>
-              <option value="CONFIRMED">Bekräftad</option>
-              <option value="PENDING">Väntande</option>
+              <option value="CONFIRMED">{tr('Bekräftad')}</option>
+              <option value="PENDING">{tr('Väntande')}</option>
             </select>
           </Field>
         </div>
@@ -115,7 +117,7 @@ export function NewAppointmentModal({ open, onClose, onCreated, services, staff 
 
         {error && <ErrorNote message={error} />}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="btn btn-ghost">Avbryt</button>
+          <button type="button" onClick={onClose} className="btn btn-ghost">{tr('Avbryt')}</button>
           <button type="submit" disabled={busy} className="btn btn-primary">
             {busy && <Loader2 size={15} className="animate-spin" />} Skapa bokning
           </button>

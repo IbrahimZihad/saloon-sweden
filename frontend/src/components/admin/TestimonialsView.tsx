@@ -14,6 +14,8 @@ import {
   Spinner,
   Toggle,
 } from '@/components/admin/ui';
+import { useAdminText } from '@/lib/admin-i18n';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { Testimonial } from '@/lib/types';
 
 interface FormState {
@@ -28,6 +30,8 @@ interface FormState {
 const EMPTY: FormState = { authorName: '', textSv: '', textEn: '', rating: 5, sortOrder: 0, active: true };
 
 export function TestimonialsView() {
+  const tr = useAdminText();
+  const { lang } = useLanguage();
   const [items, setItems] = useState<Testimonial[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Testimonial | 'new' | null>(null);
@@ -114,16 +118,16 @@ export function TestimonialsView() {
                   ))}
                 </div>
                 <span className={t.active ? 'text-xs text-[#3e6b4f]' : 'text-xs text-stone-light'}>
-                  {t.active ? 'Aktiv' : 'Dold'}
+                  {tr(t.active ? 'Aktiv' : 'Dold')}
                 </span>
               </div>
-              <p className="mt-4 flex-1 text-sm leading-relaxed text-charcoal">“{t.textSv}”</p>
+              <p className="mt-4 flex-1 text-sm leading-relaxed text-charcoal">“{lang === 'en' ? t.textEn ?? t.textSv : t.textSv}”</p>
               <p className="mt-4 font-serif text-lg text-ink">{t.authorName}</p>
               <div className="mt-4 flex items-center justify-end gap-1 border-t border-line pt-3">
-                <button onClick={() => openEdit(t)} aria-label="Redigera" className="p-2 text-stone hover:text-ink">
+                <button onClick={() => openEdit(t)} aria-label={tr('Redigera')} className="p-2 text-stone hover:text-ink">
                   <Pencil size={15} strokeWidth={1.5} />
                 </button>
-                <button onClick={() => remove(t)} aria-label="Ta bort" className="p-2 text-stone hover:text-[#b23b3b]">
+                <button onClick={() => remove(t)} aria-label={tr('Ta bort')} className="p-2 text-stone hover:text-[#b23b3b]">
                   <Trash2 size={15} strokeWidth={1.5} />
                 </button>
               </div>

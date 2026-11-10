@@ -5,9 +5,11 @@ import { Check, Mail, Phone, RotateCcw } from 'lucide-react';
 import { adminApi } from '@/lib/admin-api';
 import { Button, Card, EmptyState, ErrorNote, PageHeader, Spinner } from '@/components/admin/ui';
 import { formatLocalDateTime, DEFAULT_TZ } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { ContactMessage, Paginated } from '@/lib/types';
 
 export function MessagesView() {
+  const tr = useAdminText();
   const [result, setResult] = useState<Paginated<ContactMessage> | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function MessagesView() {
                       <h2 className="font-serif text-xl text-ink">{m.name}</h2>
                       {m.handled && (
                         <span className="inline-flex items-center gap-1 bg-[#3e6b4f]/10 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.1em] text-[#3e6b4f]">
-                          <Check size={11} /> Hanterad
+                          <Check size={11} /> {tr('Hanterad')}
                         </span>
                       )}
                     </div>
@@ -89,7 +91,7 @@ export function MessagesView() {
 
           {result.totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between">
-              <p className="text-xs text-stone">Sida {result.page} av {result.totalPages} · {result.total} meddelanden</p>
+              <p className="text-xs text-stone">{tr('Sida')} {result.page} {tr('av')} {result.totalPages} · {result.total} {tr('meddelanden')}</p>
               <div className="flex gap-2">
                 <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 text-xs">Föregående</Button>
                 <Button variant="outline" disabled={page >= result.totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs">Nästa</Button>

@@ -302,7 +302,7 @@ function PasswordCard() {
       setNext('');
       setConfirmPw('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunde inte ändra lösenord.');
+      setError(err instanceof Error ? err.message : tr('Kunde inte ändra lösenord.'));
     } finally {
       setBusy(false);
     }

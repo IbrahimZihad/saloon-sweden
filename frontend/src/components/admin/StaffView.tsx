@@ -17,6 +17,7 @@ import {
 } from '@/components/admin/ui';
 import { StaffScheduleModal } from '@/components/admin/StaffScheduleModal';
 import { MediaImage } from '@/components/ui/MediaImage';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { AdminService, AdminStaff } from '@/lib/types';
 
 interface FormState {
@@ -44,6 +45,7 @@ const EMPTY: FormState = {
 };
 
 export function StaffView() {
+  const tr = useAdminText();
   const [items, setItems] = useState<AdminStaff[] | null>(null);
   const [services, setServices] = useState<AdminService[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function StaffView() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h2 className="truncate font-serif text-xl text-ink">{s.name}</h2>
-                    {!s.active && <span className="shrink-0 text-[0.6rem] uppercase tracking-wide text-stone-light">Inaktiv</span>}
+                    {!s.active && <span className="shrink-0 text-[0.6rem] uppercase tracking-wide text-stone-light">{tr('Inaktiv')}</span>}
                   </div>
                   <p className="text-sm text-gold-dark">{s.jobTitle}</p>
                   <p className="truncate text-xs text-stone">{s.email}</p>
@@ -170,12 +172,12 @@ export function StaffView() {
                   <span key={x.serviceId} className="bg-cream px-2 py-0.5 text-[0.65rem] text-stone">{x.service.nameSv}</span>
                 ))}
                 {s.services.length > 4 && <span className="px-2 py-0.5 text-[0.65rem] text-stone-light">+{s.services.length - 4}</span>}
-                {s.services.length === 0 && <span className="text-xs text-stone-light">Inga tjänster tilldelade</span>}
+                {s.services.length === 0 && <span className="text-xs text-stone-light">{tr('Inga tjänster tilldelade')}</span>}
               </div>
               <div className="mt-4 flex items-center gap-2 border-t border-line pt-4">
                 <Button variant="outline" onClick={() => openEdit(s)} className="flex-1 px-3 py-1.5 text-xs"><Pencil size={13} /> Redigera</Button>
                 <Button variant="outline" onClick={() => setSchedule({ id: s.id, name: s.name })} className="flex-1 px-3 py-1.5 text-xs"><CalendarClock size={13} /> Schema</Button>
-                <button onClick={() => deactivate(s)} aria-label="Avaktivera" className="p-2 text-stone hover:text-[#b23b3b]"><UserX size={16} strokeWidth={1.5} /></button>
+                <button onClick={() => deactivate(s)} aria-label={tr('Avaktivera')} className="p-2 text-stone hover:text-[#b23b3b]"><UserX size={16} strokeWidth={1.5} /></button>
               </div>
             </Card>
           ))}
@@ -216,9 +218,9 @@ export function StaffView() {
           <ImageField label="Profilbild" value={form.imageUrl} onChange={(url) => setForm({ ...form, imageUrl: url })} />
 
           <div>
-            <p className="field-label mb-2">Tilldelade tjänster</p>
+            <p className="field-label mb-2">{tr('Tilldelade tjänster')}</p>
             {services.length === 0 ? (
-              <p className="text-sm text-stone-light">Skapa tjänster först för att tilldela dem.</p>
+              <p className="text-sm text-stone-light">{tr('Skapa tjänster först för att tilldela dem.')}</p>
             ) : (
               <div className="grid max-h-48 gap-1 overflow-y-auto border border-line bg-white p-3 sm:grid-cols-2">
                 {services.map((svc) => (

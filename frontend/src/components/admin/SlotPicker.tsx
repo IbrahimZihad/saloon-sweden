@@ -6,6 +6,7 @@ import { publicApi } from '@/lib/api';
 import { DEFAULT_TZ } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ErrorNote, Spinner } from '@/components/admin/ui';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { TimeSlot } from '@/lib/types';
 
 interface SlotPickerProps {
@@ -17,6 +18,7 @@ interface SlotPickerProps {
 }
 
 export function SlotPicker({ serviceIds, staffId, value, onChange, tz = DEFAULT_TZ }: SlotPickerProps) {
+  const tr = useAdminText();
   const [date, setDate] = useState(() => formatInTimeZone(new Date(), tz, 'yyyy-MM-dd'));
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,17 +52,17 @@ export function SlotPicker({ serviceIds, staffId, value, onChange, tz = DEFAULT_
 
   return (
     <div>
-      <label className="field-label">Datum</label>
+      <label className="field-label">{tr('Datum')}</label>
       <input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
       <div className="mt-4">
         {serviceIds.length === 0 ? (
-          <p className="text-sm text-stone-light">Välj tjänst först.</p>
+          <p className="text-sm text-stone-light">{tr('Välj tjänst först.')}</p>
         ) : loading ? (
           <Spinner label="Hämtar tider…" />
         ) : error ? (
           <ErrorNote message={error} />
         ) : slots.length === 0 ? (
-          <p className="text-sm text-stone-light">Inga lediga tider detta datum.</p>
+          <p className="text-sm text-stone-light">{tr('Inga lediga tider detta datum.')}</p>
         ) : (
           <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
             {slots.map((s) => (

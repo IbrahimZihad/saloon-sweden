@@ -6,6 +6,7 @@ import { fromZonedTime } from 'date-fns-tz';
 import { adminApi } from '@/lib/admin-api';
 import { Button, ErrorNote, Modal, Spinner, Toggle } from '@/components/admin/ui';
 import { minutesToTime, DEFAULT_TZ, formatLocalDateTime } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { AdminStaff } from '@/lib/types';
 
 const WEEKDAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -41,6 +42,7 @@ export function StaffScheduleModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const tr = useAdminText();
   const [staff, setStaff] = useState<AdminStaff | null>(null);
   const [tab, setTab] = useState<Tab>('hours');
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +162,7 @@ export function StaffScheduleModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={`Schema · ${staffName}`} wide>
+    <Modal open onClose={onClose} title={`${tr('Schema')} · ${staffName}`} wide>
       {!staff ? (
         <Spinner />
       ) : (
@@ -176,7 +178,7 @@ export function StaffScheduleModal({
                     : 'border-b-2 border-transparent px-4 py-2 text-sm text-stone hover:text-ink'
                 }
               >
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
@@ -185,7 +187,7 @@ export function StaffScheduleModal({
 
           {tab === 'hours' && (
             <div className="space-y-3">
-              <p className="text-xs text-stone">Aktivera de dagar personalen arbetar. Dagar som lämnas av är lediga.</p>
+              <p className="text-xs text-stone">{tr('Aktivera de dagar personalen arbetar. Dagar som lämnas av är lediga.')}</p>
               {days.map((d, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-3 border border-line bg-white px-4 py-3">
                   <div className="w-24"><Toggle checked={d.enabled} onChange={(v) => setDays(days.map((x, j) => (j === i ? { ...x, enabled: v } : x)))} label={WEEKDAYS[i]} /></div>
@@ -212,8 +214,8 @@ export function StaffScheduleModal({
 
           {tab === 'breaks' && (
             <div className="space-y-3">
-              <p className="text-xs text-stone">Återkommande raster (t.ex. lunch) per veckodag. Ersätter alla tidigare raster.</p>
-              {breaks.length === 0 && <p className="text-sm text-stone-light">Inga raster inlagda.</p>}
+              <p className="text-xs text-stone">{tr('Återkommande raster (t.ex. lunch) per veckodag. Ersätter alla tidigare raster.')}</p>
+              {breaks.length === 0 && <p className="text-sm text-stone-light">{tr('Inga raster inlagda.')}</p>}
               {breaks.map((b, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-2 border border-line bg-white px-4 py-3">
                   <select
@@ -221,13 +223,13 @@ export function StaffScheduleModal({
                     value={b.dayOfWeek}
                     onChange={(e) => setBreaks(breaks.map((x, j) => (j === i ? { ...x, dayOfWeek: Number(e.target.value) } : x)))}
                   >
-                    {WEEKDAYS.map((w, di) => <option key={di} value={di}>{w}</option>)}
+                    {WEEKDAYS.map((w, di) => <option key={di} value={di}>{tr(w)}</option>)}
                   </select>
                   <input type="time" className="field w-28" value={b.start} onChange={(e) => setBreaks(breaks.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
                   <span className="text-stone-light">–</span>
                   <input type="time" className="field w-28" value={b.end} onChange={(e) => setBreaks(breaks.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-                  <input className="field min-w-32 flex-1" placeholder="Etikett (t.ex. Lunch)" value={b.label} onChange={(e) => setBreaks(breaks.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
-                  <button onClick={() => setBreaks(breaks.filter((_, j) => j !== i))} aria-label="Ta bort rast" className="p-2 text-stone hover:text-[#b23b3b]"><Trash2 size={15} /></button>
+                  <input className="field min-w-32 flex-1" placeholder={tr('Etikett (t.ex. Lunch)')} value={b.label} onChange={(e) => setBreaks(breaks.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                  <button onClick={() => setBreaks(breaks.filter((_, j) => j !== i))} aria-label={tr('Ta bort rast')} className="p-2 text-stone hover:text-[#b23b3b]"><Trash2 size={15} /></button>
                 </div>
               ))}
               <div className="flex items-center justify-between pt-2">
@@ -240,25 +242,25 @@ export function StaffScheduleModal({
           {tab === 'timeoff' && (
             <div className="space-y-5">
               <div className="border border-line bg-white p-4">
-                <p className="field-label mb-3">Lägg till ledighet / semester</p>
+                <p className="field-label mb-3">{tr('Lägg till ledighet / semester')}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-stone">Start (lokal tid)</label>
+                    <label className="mb-1 block text-xs text-stone">{tr('Start (lokal tid)')}</label>
                     <input type="datetime-local" className="field" value={offStart} onChange={(e) => setOffStart(e.target.value)} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-stone">Slut (lokal tid)</label>
+                    <label className="mb-1 block text-xs text-stone">{tr('Slut (lokal tid)')}</label>
                     <input type="datetime-local" className="field" value={offEnd} onChange={(e) => setOffEnd(e.target.value)} />
                   </div>
                 </div>
-                <input className="field mt-3" placeholder="Anledning (valfritt)" value={offReason} onChange={(e) => setOffReason(e.target.value)} />
+                <input className="field mt-3" placeholder={tr('Anledning (valfritt)')} value={offReason} onChange={(e) => setOffReason(e.target.value)} />
                 <div className="mt-3 flex justify-end"><Button onClick={addTimeOff} loading={saving} className="px-3 py-1.5 text-xs"><Plus size={13} /> Lägg till</Button></div>
               </div>
 
               <div>
-                <p className="field-label mb-2">Inlagd ledighet</p>
+                <p className="field-label mb-2">{tr('Inlagd ledighet')}</p>
                 {(staff.timeOffs ?? []).length === 0 ? (
-                  <p className="text-sm text-stone-light">Ingen ledighet inlagd.</p>
+                  <p className="text-sm text-stone-light">{tr('Ingen ledighet inlagd.')}</p>
                 ) : (
                   <div className="divide-y divide-line border border-line">
                     {(staff.timeOffs ?? []).map((t) => (
@@ -267,7 +269,7 @@ export function StaffScheduleModal({
                           <p className="text-sm text-ink">{formatLocalDateTime(t.startsAt, DEFAULT_TZ)} → {formatLocalDateTime(t.endsAt, DEFAULT_TZ)}</p>
                           {t.reason && <p className="text-xs text-stone">{t.reason}</p>}
                         </div>
-                        <button onClick={() => removeTimeOff(t.id)} aria-label="Ta bort ledighet" className="p-2 text-stone hover:text-[#b23b3b]"><Trash2 size={15} /></button>
+                        <button onClick={() => removeTimeOff(t.id)} aria-label={tr('Ta bort ledighet')} className="p-2 text-stone hover:text-[#b23b3b]"><Trash2 size={15} /></button>
                       </div>
                     ))}
                   </div>
