@@ -55,7 +55,7 @@ export function OverviewView() {
         {(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'] as const).map((s) => (
           <Card key={s} className="p-4">
             <StatusBadge status={s} />
-            <p className="mt-3 font-serif text-2xl text-ink">{data.totals[s]}</p>
+            <p className="mt-2 text-lg font-semibold leading-6 tabular-nums text-ink">{data.totals[s]}</p>
           </Card>
         ))}
       </div>
@@ -153,13 +153,13 @@ function Stat({
   value: string;
 }) {
   return (
-    <Card className="flex items-center gap-4 p-5">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-gold/40 bg-cream text-gold-dark">
-        <Icon size={19} strokeWidth={1.5} />
+    <Card className="flex items-center gap-3 p-4">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-gold/40 bg-cream text-gold-dark">
+        <Icon size={15} strokeWidth={1.5} />
       </span>
       <div className="min-w-0">
-        <p className="min-h-5 text-sm leading-5 text-stone">{label}</p>
-        <p className="mt-1 truncate text-2xl font-semibold leading-8 tabular-nums text-ink">{value}</p>
+        <p className="min-h-4 text-[0.75rem] leading-4 text-stone">{label}</p>
+        <p className="mt-1 truncate text-xl font-semibold leading-6 tabular-nums text-ink">{value}</p>
       </div>
     </Card>
   );

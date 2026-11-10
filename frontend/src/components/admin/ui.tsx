@@ -45,7 +45,7 @@ export function EmptyState({ message }: { message: string }) {
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('border border-line bg-white', className)}>{children}</div>;
+  return <div className={cn('admin-card', className)}>{children}</div>;
 }
 
 export function PageHeader({
@@ -153,7 +153,7 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
 export function StatusBadge({ status }: { status: AppointmentStatus }) {
   const tr = useAdminText();
   return (
-    <span className={cn('inline-block px-2.5 py-1 text-xs font-medium', STATUS_STYLES[status])}>
+    <span className={cn('inline-block px-2 py-0.5 text-[0.7rem] font-medium', STATUS_STYLES[status])}>
       {tr(STATUS_LABELS[status])}
     </span>
   );
