@@ -100,7 +100,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-ivory">
+    <div className="admin-interface min-h-screen bg-ivory">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 bg-charcoal lg:block">{sidebar}</aside>
 

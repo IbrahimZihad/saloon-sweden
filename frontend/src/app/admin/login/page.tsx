@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-cream px-6">
+    <div className="admin-interface flex min-h-screen items-center justify-center bg-cream px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <span className="mx-auto flex h-14 w-14 items-center justify-center border border-gold/40 bg-ivory text-gold-dark">

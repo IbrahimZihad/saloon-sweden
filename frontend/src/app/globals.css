@@ -201,3 +201,53 @@ h1, h2, h3, h4, h5 {
   .animate-fade-in { animation: fadeIn 0.5s ease both; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 }
+
+.admin-interface {
+  color: #292622;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.admin-interface :where(p, span, label, button, a, th, td, input, select, textarea) {
+  font-weight: 400;
+}
+
+.admin-interface :is(h1, h2, h3, h4, h5, .font-serif) {
+  color: #201d19;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+}
+
+.admin-interface .text-stone-light {
+  color: #625b52;
+}
+
+.admin-interface .text-stone {
+  color: #514a42;
+}
+
+.admin-interface .text-gold-dark {
+  color: #75551f;
+}
+
+.admin-interface .text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.admin-interface .field-label {
+  color: #514a42;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.admin-interface [class*="text-ivory/40"] {
+  opacity: 0.72;
+}
+
+.admin-interface [class*="text-ivory/60"] {
+  opacity: 0.86;
+}
