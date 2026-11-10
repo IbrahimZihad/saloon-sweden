@@ -163,7 +163,11 @@ h1, h2, h3, h4, h5 {
     margin-top: 0.4rem;
   }
 
-  .card-luxe,
+  .card-luxe {
+    background: #fff;
+    border: 1px solid var(--color-line);
+  }
+
   .admin-card {
     background: linear-gradient(145deg, #fff 0%, #fdfbf7 100%);
     border: 1px solid var(--color-line);
@@ -175,7 +179,6 @@ h1, h2, h3, h4, h5 {
       border-color 220ms ease;
   }
 
-  .card-luxe:hover,
   .admin-card:hover {
     transform: translateY(-2px);
     border-color: rgb(176 146 90 / 0.45);
@@ -183,12 +186,10 @@ h1, h2, h3, h4, h5 {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .card-luxe,
     .admin-card {
       transition: none;
     }
 
-    .card-luxe:hover,
     .admin-card:hover {
       transform: none;
     }
