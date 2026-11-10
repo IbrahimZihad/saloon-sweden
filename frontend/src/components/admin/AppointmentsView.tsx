@@ -9,6 +9,8 @@ import { NewAppointmentModal } from '@/components/admin/NewAppointmentModal';
 import { Card, EmptyState, ErrorNote, PageHeader, Spinner, StatusBadge, Td, Th } from '@/components/admin/ui';
 import { DEFAULT_TZ, formatLocalDate, formatLocalTime, formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useAdminText } from '@/lib/admin-i18n';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { AdminService, AdminStaff, Appointment, AppointmentStatus, Paginated } from '@/lib/types';
 
 const STATUSES: AppointmentStatus[] = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
@@ -24,6 +26,8 @@ function monthRange(y: number, m: number): { from: string; to: string } {
 }
 
 export function AppointmentsView() {
+  const tr = useAdminText();
+  const { lang } = useLanguage();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [filter, setFilter] = useState<AppointmentFilter>({});
   const [page, setPage] = useState(1);
@@ -88,7 +92,7 @@ export function AppointmentsView() {
 
   const firstWeekday = (new Date(month.y, month.m, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(month.y, month.m + 1, 0).getDate();
-  const monthLabel = new Intl.DateTimeFormat('sv-SE', { month: 'long', year: 'numeric' }).format(new Date(month.y, month.m, 1));
+  const monthLabel = new Intl.DateTimeFormat(lang === 'sv' ? 'sv-SE' : 'en-US', { month: 'long', year: 'numeric' }).format(new Date(month.y, month.m, 1));
 
   return (
     <div>
@@ -97,7 +101,7 @@ export function AppointmentsView() {
         subtitle="Hantera bokningar — bekräfta, omboka, avboka eller skapa manuellt."
         action={
           <button onClick={() => setShowNew(true)} className="btn btn-primary !py-2.5">
-            <Plus size={15} strokeWidth={1.5} /> Ny bokning
+            <Plus size={15} strokeWidth={1.5} /> {tr('Ny bokning')}
           </button>
         }
       />
@@ -108,26 +112,26 @@ export function AppointmentsView() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-light" />
           <input
             className="field !pl-9"
-            placeholder="Sök namn, telefon, e-post eller referens…"
+            placeholder={tr('Sök namn, telefon, e-post eller referens…')}
             value={filter.search ?? ''}
             onChange={(e) => setFilterField({ search: e.target.value })}
           />
         </div>
         <select className="field" value={filter.status ?? ''} onChange={(e) => setFilterField({ status: (e.target.value || undefined) as AppointmentStatus | undefined })}>
-          <option value="">Alla statusar</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          <option value="">{tr('Alla statusar')}</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{tr(STATUS_LABEL[s])}</option>)}
         </select>
         <select className="field" value={filter.staffId ?? ''} onChange={(e) => setFilterField({ staffId: e.target.value || undefined })}>
-          <option value="">Alla stylister</option>
+          <option value="">{tr('Alla stylister')}</option>
           {staff.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
         <input type="date" className="field" value={filter.date ?? ''} onChange={(e) => setFilterField({ date: e.target.value || undefined })} />
         <div className="flex border border-line">
-          <button onClick={() => setView('list')} className={cn('flex items-center gap-2 px-4 py-2 text-xs', view === 'list' ? 'bg-charcoal text-ivory' : 'text-stone')} aria-label="Listvy">
-            <List size={15} /> Lista
+          <button onClick={() => setView('list')} className={cn('flex items-center gap-2 px-4 py-2 text-xs', view === 'list' ? 'bg-charcoal text-ivory' : 'text-stone')} aria-label={tr('Listvy')}>
+            <List size={15} /> {tr('Lista')}
           </button>
-          <button onClick={() => setView('calendar')} className={cn('flex items-center gap-2 px-4 py-2 text-xs', view === 'calendar' ? 'bg-charcoal text-ivory' : 'text-stone')} aria-label="Kalendervy">
-            <CalendarDays size={15} /> Kalender
+          <button onClick={() => setView('calendar')} className={cn('flex items-center gap-2 px-4 py-2 text-xs', view === 'calendar' ? 'bg-charcoal text-ivory' : 'text-stone')} aria-label={tr('Kalendervy')}>
+            <CalendarDays size={15} /> {tr('Kalender')}
           </button>
         </div>
       </Card>
@@ -168,7 +172,7 @@ export function AppointmentsView() {
                 </table>
               </div>
               <div className="flex items-center justify-between border-t border-line px-4 py-3 text-sm text-stone">
-                <span>Sida {list.page} av {list.totalPages} · {list.total} bokningar</span>
+                <span>{tr('Sida')} {list.page} {tr('av')} {list.totalPages} · {list.total} {tr('bokningar')}</span>
                 <div className="flex gap-2">
                   <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="btn btn-outline !px-3 !py-1.5 disabled:opacity-30"><ChevronLeft size={15} /></button>
                   <button disabled={page >= list.totalPages} onClick={() => setPage((p) => p + 1)} className="btn btn-outline !px-3 !py-1.5 disabled:opacity-30"><ChevronRight size={15} /></button>
@@ -189,7 +193,7 @@ export function AppointmentsView() {
           ) : (
             <div className="grid grid-cols-7 gap-1">
               {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map((d) => (
-                <span key={d} className="pb-2 text-center text-[0.65rem] uppercase tracking-[0.12em] text-stone-light">{d}</span>
+                <span key={d} className="pb-2 text-center text-[0.65rem] uppercase tracking-[0.12em] text-stone-light">{tr(d)}</span>
               ))}
               {Array.from({ length: firstWeekday }).map((_, i) => <span key={`b${i}`} />)}
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -209,7 +213,7 @@ export function AppointmentsView() {
                           {formatLocalTime(a.startsAt, DEFAULT_TZ)} {a.customer.fullName}
                         </span>
                       ))}
-                      {items.length > 3 && <span className="block text-[0.6rem] text-gold-dark">+{items.length - 3} till</span>}
+                      {items.length > 3 && <span className="block text-[0.6rem] text-gold-dark">+{items.length - 3} {tr('till')}</span>}
                     </span>
                   </button>
                 );

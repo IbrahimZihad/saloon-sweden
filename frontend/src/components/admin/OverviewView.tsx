@@ -16,9 +16,11 @@ import { adminApi } from '@/lib/admin-api';
 import { Card, EmptyState, ErrorNote, PageHeader, Spinner, StatusBadge, Td, Th } from '@/components/admin/ui';
 import { formatLocalTime, formatMoney } from '@/lib/format';
 import { DEFAULT_TZ } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { DashboardOverview } from '@/lib/types';
 
 export function OverviewView() {
+  const tr = useAdminText();
   const [data, setData] = useState<DashboardOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,19 +36,19 @@ export function OverviewView() {
 
   const chart = data.statistics.daily.map((d) => ({
     date: d.date.slice(5),
-    Bokningar: d.bookings,
-    Intakter: d.revenue,
+    [tr('Bokningar')]: d.bookings,
+    [tr('Intäkter')]: d.revenue,
   }));
 
   return (
     <div>
-      <PageHeader title="Översikt" subtitle={`Dagens datum: ${data.today.date}`} />
+      <PageHeader title="Översikt" subtitle={`${tr('Dagens datum')}: ${data.today.date}`} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={CalendarCheck} label="Bokningar idag" value={String(data.today.total)} />
-        <Stat icon={CalendarClock} label="Kommande" value={String(data.totals.upcoming)} />
-        <Stat icon={TrendingUp} label="Bokningar 30 dagar" value={String(data.statistics.monthlyBookings)} />
-        <Stat icon={Wallet} label="Intäkter (genomförda)" value={formatMoney(data.revenue.completedTotal)} />
+        <Stat icon={CalendarCheck} label={tr('Bokningar idag')} value={String(data.today.total)} />
+        <Stat icon={CalendarClock} label={tr('Kommande')} value={String(data.totals.upcoming)} />
+        <Stat icon={TrendingUp} label={tr('Bokningar 30 dagar')} value={String(data.statistics.monthlyBookings)} />
+        <Stat icon={Wallet} label={tr('Intäkter (genomförda)')} value={formatMoney(data.revenue.completedTotal)} />
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-5">
@@ -61,7 +63,7 @@ export function OverviewView() {
       <Card className="mt-6 p-6">
         <div className="mb-6 flex items-center gap-2">
           <TrendingUp size={17} strokeWidth={1.5} className="text-gold-dark" />
-          <h2 className="font-serif text-xl">Bokningar senaste 30 dagarna</h2>
+          <h2 className="font-serif text-xl">{tr('Bokningar senaste 30 dagarna')}</h2>
         </div>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -76,7 +78,7 @@ export function OverviewView() {
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9a9184' }} tickLine={false} axisLine={false} interval={4} />
               <YAxis tick={{ fontSize: 11, fill: '#9a9184' }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip contentStyle={{ border: '1px solid #e4dccf', borderRadius: 0, fontSize: 12 }} />
-              <Area type="monotone" dataKey="Bokningar" stroke="#b0925a" strokeWidth={2} fill="url(#goldFill)" />
+              <Area type="monotone" dataKey={tr('Bokningar')} stroke="#b0925a" strokeWidth={2} fill="url(#goldFill)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -85,9 +87,9 @@ export function OverviewView() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
           <div className="flex items-center justify-between border-b border-line px-6 py-4">
-            <h2 className="font-serif text-xl">Dagens bokningar</h2>
+            <h2 className="font-serif text-xl">{tr('Dagens bokningar')}</h2>
             <Link href="/admin/appointments" className="text-xs uppercase tracking-[0.14em] text-gold-dark hover:text-ink">
-              Alla
+              {tr('Alla')}
             </Link>
           </div>
           {data.today.appointments.length === 0 ? (
@@ -114,7 +116,7 @@ export function OverviewView() {
         <Card>
           <div className="flex items-center gap-2 border-b border-line px-6 py-4">
             <Clock size={17} strokeWidth={1.5} className="text-gold-dark" />
-            <h2 className="font-serif text-xl">Närmast kommande</h2>
+            <h2 className="font-serif text-xl">{tr('Närmast kommande')}</h2>
           </div>
           {data.upcoming.length === 0 ? (
             <EmptyState message="Inga kommande bokningar." />

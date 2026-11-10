@@ -15,6 +15,7 @@ import {
   Toggle,
 } from '@/components/admin/ui';
 import { minutesToTime } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { BusinessHours, PublicSettings } from '@/lib/types';
 
 const WEEKDAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -31,6 +32,7 @@ interface HourRow {
 }
 
 export function SettingsView() {
+  const tr = useAdminText();
   const [form, setForm] = useState<PublicSettings | null>(null);
   const [hours, setHours] = useState<HourRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -239,11 +241,11 @@ export function SettingsView() {
 
         <Card className="p-6">
           <SectionTitle>Öppettider</SectionTitle>
-          <p className="mt-1 text-xs text-stone">Salongens allmänna öppettider. Personalens individuella scheman styr sedan tillgängligheten.</p>
+          <p className="mt-1 text-xs text-stone">{tr('Salongens allmänna öppettider. Personalens individuella scheman styr sedan tillgängligheten.')}</p>
           <div className="mt-4 space-y-2">
             {hours.map((h, i) => (
               <div key={i} className="flex flex-wrap items-center gap-3 border border-line bg-white px-4 py-2.5">
-                <span className="w-24 text-sm text-charcoal">{WEEKDAYS[i]}</span>
+                <span className="w-24 text-sm text-charcoal">{tr(WEEKDAYS[i])}</span>
                 <Toggle checked={!h.isClosed} onChange={(v) => setHours(hours.map((x, j) => (j === i ? { ...x, isClosed: !v } : x)))} label={h.isClosed ? 'Stängt' : 'Öppet'} />
                 <input type="time" className="field w-32" disabled={h.isClosed} value={h.open} onChange={(e) => setHours(hours.map((x, j) => (j === i ? { ...x, open: e.target.value } : x)))} />
                 <span className="text-stone-light">–</span>
@@ -261,19 +263,22 @@ export function SettingsView() {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-serif text-xl text-ink">{children}</h2>;
+  const tr = useAdminText();
+  return <h2 className="font-serif text-xl text-ink">{tr(String(children))}</h2>;
 }
 
 function SaveRow({ msg, saving, onClick, label }: { msg: string | null; saving: boolean; onClick: () => void; label: string }) {
+  const tr = useAdminText();
   return (
     <div className="mt-5 flex items-center justify-end gap-3 border-t border-line pt-4">
-      {msg && <span className="text-sm text-[#3e6b4f]">{msg}</span>}
-      <Button onClick={onClick} loading={saving}><Save size={15} /> {label}</Button>
+      {msg && <span className="text-sm text-[#3e6b4f]">{tr(msg)}</span>}
+      <Button onClick={onClick} loading={saving}><Save size={15} /> {tr(label)}</Button>
     </div>
   );
 }
 
 function PasswordCard() {
+  const tr = useAdminText();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -286,13 +291,13 @@ function PasswordCard() {
     setError(null);
     setMsg(null);
     if (next !== confirmPw) {
-      setError('De nya lösenorden matchar inte.');
+      setError(tr('De nya lösenorden matchar inte.'));
       return;
     }
     setBusy(true);
     try {
       await authApi.changePassword(current, next);
-      setMsg('Lösenordet har ändrats.');
+      setMsg(tr('Lösenordet har ändrats.'));
       setCurrent('');
       setNext('');
       setConfirmPw('');

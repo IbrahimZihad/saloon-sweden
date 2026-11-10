@@ -17,9 +17,11 @@ import {
   Th,
 } from '@/components/admin/ui';
 import { formatLocalDateTime, formatMoney, DEFAULT_TZ } from '@/lib/format';
+import { useAdminText } from '@/lib/admin-i18n';
 import type { AdminCustomer, CustomerDetail, Paginated } from '@/lib/types';
 
 export function CustomersView() {
+  const tr = useAdminText();
   const { user } = useAdminAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [result, setResult] = useState<Paginated<AdminCustomer> | null>(null);
@@ -98,7 +100,7 @@ export function CustomersView() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-light" strokeWidth={1.5} />
           <input
             className="field pl-9"
-            placeholder="Sök namn, e-post eller telefon…"
+            placeholder={tr('Sök namn, e-post eller telefon…')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -156,7 +158,7 @@ export function CustomersView() {
 
           {result.totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between">
-              <p className="text-xs text-stone">Sida {result.page} av {result.totalPages} · {result.total} kunder</p>
+              <p className="text-xs text-stone">{tr('Sida')} {result.page} {tr('av')} {result.totalPages} · {result.total} {tr('kunder')}</p>
               <div className="flex gap-2">
                 <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 text-xs">Föregående</Button>
                 <Button variant="outline" disabled={page >= result.totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs">Nästa</Button>
@@ -176,19 +178,19 @@ export function CustomersView() {
               <Info label="E-post" value={detail.email} />
               <Info label="Telefon" value={detail.phone} />
               <Info label="Kund sedan" value={formatLocalDateTime(detail.createdAt, DEFAULT_TZ)} />
-              <Info label="Marknadsföringssamtycke" value={detail.marketingConsent ? 'Ja' : 'Nej'} />
+              <Info label="Marknadsföringssamtycke" value={tr(detail.marketingConsent ? 'Ja' : 'Nej')} />
             </div>
             {detail.notes && (
               <div>
-                <p className="field-label">Anteckningar</p>
+                <p className="field-label">{tr('Anteckningar')}</p>
                 <p className="whitespace-pre-wrap text-sm text-charcoal">{detail.notes}</p>
               </div>
             )}
 
             <div>
-              <p className="field-label mb-2">Bokningshistorik ({detail.appointments.length})</p>
+              <p className="field-label mb-2">{tr('Bokningshistorik')} ({detail.appointments.length})</p>
               {detail.appointments.length === 0 ? (
-                <p className="text-sm text-stone-light">Inga bokningar.</p>
+                <p className="text-sm text-stone-light">{tr('Inga bokningar.')}</p>
               ) : (
                 <div className="divide-y divide-line border border-line">
                   {detail.appointments.map((a) => (
@@ -209,13 +211,13 @@ export function CustomersView() {
 
             {isAdmin && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                <p className="text-xs text-stone-light">GDPR-verktyg</p>
+                <p className="text-xs text-stone-light">{tr('GDPR-verktyg')}</p>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => exportData(detail)} className="px-3 py-1.5 text-xs">
-                    <Download size={13} /> Exportera data
+                    <Download size={13} /> {tr('Exportera data')}
                   </Button>
                   <Button variant="danger" onClick={() => erase(detail)} className="px-3 py-1.5 text-xs">
-                    <Trash2 size={13} /> Anonymisera
+                    <Trash2 size={13} /> {tr('Anonymisera')}
                   </Button>
                 </div>
               </div>
@@ -230,10 +232,11 @@ export function CustomersView() {
 }
 
 function Info({ label, value }: { label: string; value: string }) {
+  const tr = useAdminText();
   return (
     <div>
-      <p className="field-label">{label}</p>
-      <p className="text-sm text-charcoal">{value}</p>
+      <p className="field-label">{tr(label)}</p>
+      <p className="text-sm text-charcoal">{tr(value)}</p>
     </div>
   );
 }
