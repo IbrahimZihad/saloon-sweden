@@ -52,6 +52,7 @@ const EMPTY: FormState = {
 };
 
 export function ServicesView() {
+  const tr = useAdminText();
   const { lang } = useLanguage();
   const [items, setItems] = useState<AdminService[] | null>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -130,7 +131,7 @@ export function ServicesView() {
   }
 
   async function remove(s: AdminService) {
-    if (!confirm(`Ta bort tjänsten "${s.nameSv}"? Tjänster med bokningshistorik kan endast avaktiveras.`)) return;
+    if (!confirm(tr('Ta bort tjänsten "{name}"? Tjänster med bokningshistorik kan endast avaktiveras.').replace('{name}', s.nameSv))) return;
     setError(null);
     try {
       await adminApi.deleteService(s.id);
@@ -205,10 +206,10 @@ export function ServicesView() {
                   </Td>
                   <Td className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(s)} aria-label="Redigera" className="p-2 text-stone hover:text-ink">
+                      <button onClick={() => openEdit(s)} aria-label={tr('Redigera')} className="p-2 text-stone hover:text-ink">
                         <Pencil size={15} strokeWidth={1.5} />
                       </button>
-                      <button onClick={() => remove(s)} aria-label="Ta bort" className="p-2 text-stone hover:text-[#b23b3b]">
+                      <button onClick={() => remove(s)} aria-label={tr('Ta bort')} className="p-2 text-stone hover:text-[#b23b3b]">
                         <Trash2 size={15} strokeWidth={1.5} />
                       </button>
                     </div>

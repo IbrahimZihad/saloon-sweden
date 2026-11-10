@@ -272,6 +272,8 @@ const extraEn: Record<string, string> = {
   'Kunde inte hämta översikt.': 'Could not load overview.',
   'Kunde inte hämta bokningar.': 'Could not load appointments.',
   'Kunde inte hämta kalender.': 'Could not load calendar.',
+  'Ta bort kategorin "{name}"? Detta går endast om den saknar tjänster.': 'Delete category "{name}"? You can only delete categories with no services.',
+  'Ta bort omdömet från "{name}"?': 'Delete the testimonial from "{name}"?',
   'Kundomdömen som visas på startsidan.': 'Customer testimonials displayed on the homepage.',
   'Hantera stylister, deras tjänster och arbetsscheman.': 'Manage stylists, their services and work schedules.',
   'Inga raster inlagda.': 'No breaks added.',

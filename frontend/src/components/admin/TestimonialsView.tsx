@@ -84,7 +84,7 @@ export function TestimonialsView() {
   }
 
   async function remove(t: Testimonial) {
-    if (!confirm(`Ta bort omdömet från "${t.authorName}"?`)) return;
+    if (!confirm(tr(`Ta bort omdömet från "{name}"?`).replace('{name}', t.authorName))) return;
     setError(null);
     try {
       await adminApi.deleteTestimonial(t.id);

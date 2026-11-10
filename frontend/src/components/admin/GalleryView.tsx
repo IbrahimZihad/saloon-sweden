@@ -67,7 +67,7 @@ export function GalleryView() {
   }
 
   async function remove(img: GalleryImage) {
-    if (!confirm('Ta bort bilden från galleriet? Filen raderas också.')) return;
+    if (!confirm(tr('Ta bort bilden från galleriet? Filen raderas också.'))) return;
     setError(null);
     try {
       await adminApi.deleteGallery(img.id);

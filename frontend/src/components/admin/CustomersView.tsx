@@ -77,7 +77,7 @@ export function CustomersView() {
   }
 
   async function erase(c: CustomerDetail) {
-    if (!confirm(`Anonymisera all persondata för "${c.fullName}"? Detta kan inte ångras (GDPR-radering). Bokningshistorik behålls anonymiserad.`)) return;
+    if (!confirm(tr('Anonymisera all persondata för "{name}"? Detta kan inte ångras (GDPR-radering). Bokningshistorik behålls anonymiserad.').replace('{name}', c.fullName))) return;
     setActionError(null);
     try {
       await adminApi.eraseCustomer(c.id);

@@ -121,7 +121,7 @@ export function StaffView() {
   }
 
   async function deactivate(s: AdminStaff) {
-    if (!confirm(`Avaktivera "${s.name}"? Personen döljs från bokningen men historiken behålls.`)) return;
+    if (!confirm(tr(`Avaktivera "{name}"? Personen döljs från bokningen men historiken behålls.`).replace('{name}', s.name))) return;
     setError(null);
     try {
       await adminApi.deactivateStaff(s.id);
