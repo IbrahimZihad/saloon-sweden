@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+backend/dist/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+
+# Uploads (user-provided files)
+backend/uploads/
+
+# Local MySQL runtime data (never commit the database)
+mysqldata/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test artifacts
+coverage/
+frontend/test-results/
+frontend/playwright-report/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
