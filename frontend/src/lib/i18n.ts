@@ -100,6 +100,7 @@ const sv: Dictionary = {
   'hours.closed': 'Stängt',
   'hours.visit': 'Besök oss',
   'hours.bookCta': 'Boka tid online',
+  'hours.openMaps': 'Öppna i Google Maps',
 
   // Contact
   'contact.eyebrow': 'Kontakt',
@@ -314,6 +315,7 @@ const en: Dictionary = {
   'hours.closed': 'Closed',
   'hours.visit': 'Visit us',
   'hours.bookCta': 'Book online',
+  'hours.openMaps': 'Open in Google Maps',
 
   'contact.eyebrow': 'Contact',
   'contact.title': 'Get in touch',

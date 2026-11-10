@@ -97,9 +97,10 @@ export function Navbar({ salonName, logoUrl }: NavbarProps) {
               transparent ? 'text-ivory/80' : 'text-stone',
             )}
             role="group"
-            aria-label="Language"
+            aria-label={lang === 'sv' ? 'Välj språk' : 'Choose language'}
           >
             <button
+              type="button"
               onClick={() => setLang('sv')}
               className={cn('px-1.5 py-1 transition-colors', lang === 'sv' && (transparent ? 'text-ivory' : 'text-gold-dark'))}
               aria-pressed={lang === 'sv'}
@@ -108,6 +109,7 @@ export function Navbar({ salonName, logoUrl }: NavbarProps) {
             </button>
             <span className="opacity-40">/</span>
             <button
+              type="button"
               onClick={() => setLang('en')}
               className={cn('px-1.5 py-1 transition-colors', lang === 'en' && (transparent ? 'text-ivory' : 'text-gold-dark'))}
               aria-pressed={lang === 'en'}
@@ -156,9 +158,9 @@ export function Navbar({ salonName, logoUrl }: NavbarProps) {
               {t('nav.bookNow')}
             </Link>
             <div className="flex items-center gap-2 text-sm tracking-[0.12em] text-stone">
-              <button onClick={() => setLang('sv')} className={cn(lang === 'sv' && 'text-gold-dark')}>SV</button>
+              <button type="button" onClick={() => setLang('sv')} aria-pressed={lang === 'sv'} className={cn(lang === 'sv' && 'text-gold-dark')}>SV</button>
               <span className="opacity-40">/</span>
-              <button onClick={() => setLang('en')} className={cn(lang === 'en' && 'text-gold-dark')}>EN</button>
+              <button type="button" onClick={() => setLang('en')} aria-pressed={lang === 'en'} className={cn(lang === 'en' && 'text-gold-dark')}>EN</button>
             </div>
           </div>
           <Link href="/admin" className="mt-8 text-xs uppercase tracking-[0.16em] text-stone-light" onClick={() => setOpen(false)}>

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/components/providers/LanguageProvider';
 import { CookieConsent } from '@/components/layout/CookieConsent';
+import type { Language } from '@/lib/types';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,7 +29,10 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const savedLanguage = (await cookies()).get('salon_lang')?.value;
+  const initialLanguage: Language = savedLanguage === 'en' ? 'en' : 'sv';
+
   return (
     <html lang="sv" suppressHydrationWarning>
       <head>
@@ -39,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <LanguageProvider>
+        <LanguageProvider initialLanguage={initialLanguage}>
           {children}
           <CookieConsent />
         </LanguageProvider>

@@ -12,7 +12,7 @@ interface FooterProps {
 }
 
 export function Footer({ settings, hours }: FooterProps) {
-  const { t, lang } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const year = new Date().getFullYear();
   const name = settings?.salonName ?? 'Salong Sweden';
 
@@ -121,7 +121,11 @@ export function Footer({ settings, hours }: FooterProps) {
             <Link href="/privacy" className="hover:text-ivory">{t('footer.privacy')}</Link>
             <Link href="/terms" className="hover:text-ivory">{t('footer.terms')}</Link>
             <Link href="/admin" className="hover:text-ivory">{t('footer.admin')}</Link>
-            <span className="uppercase tracking-[0.12em]">{lang === 'sv' ? 'Svenska' : 'English'}</span>
+            <div className="flex items-center gap-2 uppercase tracking-[0.12em]" role="group" aria-label={lang === 'sv' ? 'Välj språk' : 'Choose language'}>
+              <button type="button" onClick={() => setLang('sv')} aria-pressed={lang === 'sv'} className="hover:text-ivory aria-pressed:text-gold">SV</button>
+              <span aria-hidden="true">/</span>
+              <button type="button" onClick={() => setLang('en')} aria-pressed={lang === 'en'} className="hover:text-ivory aria-pressed:text-gold">EN</button>
+            </div>
           </div>
         </div>
       </div>

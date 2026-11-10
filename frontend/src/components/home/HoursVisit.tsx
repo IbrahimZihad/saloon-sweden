@@ -15,6 +15,14 @@ interface HoursVisitProps {
 
 export function HoursVisit({ hours, settings }: HoursVisitProps) {
   const { t } = useLanguage();
+  const location = [settings?.address, settings?.postalCode, settings?.city].filter(Boolean).join(', ');
+  const mapSearch = location || settings?.salonName || '';
+  const mapEmbedUrl =
+    settings?.mapEmbedUrl ||
+    (mapSearch ? `https://www.google.com/maps?q=${encodeURIComponent(mapSearch)}&output=embed` : null);
+  const mapLink = mapSearch
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearch)}`
+    : settings?.mapEmbedUrl;
 
   return (
     <section id="visit" className="bg-ivory py-24 lg:py-32">
@@ -52,9 +60,9 @@ export function HoursVisit({ hours, settings }: HoursVisitProps) {
 
           <Reveal delay={120} className="card-luxe flex flex-col overflow-hidden">
             <div className="relative min-h-[240px] flex-1 bg-sand">
-              {settings?.mapEmbedUrl ? (
+              {mapEmbedUrl ? (
                 <iframe
-                  src={settings.mapEmbedUrl}
+                  src={mapEmbedUrl}
                   title={t('hours.visit')}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
@@ -83,6 +91,17 @@ export function HoursVisit({ hours, settings }: HoursVisitProps) {
                 <a href={`mailto:${settings.email}`} className="flex items-center gap-3 text-sm text-stone hover:text-ink">
                   <Mail size={17} strokeWidth={1.5} className="text-gold-dark" />
                   {settings.email}
+                </a>
+              )}
+              {mapLink && (
+                <a
+                  href={mapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-sm text-stone hover:text-ink"
+                >
+                  <MapPin size={17} strokeWidth={1.5} className="text-gold-dark" />
+                  {t('hours.openMaps')}
                 </a>
               )}
             </div>

@@ -12,15 +12,16 @@ interface LanguageContextValue {
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
-const STORAGE_KEY = 'salon_lang';
+const LANGUAGE_COOKIE = 'salon_lang';
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Language>(DEFAULT_LANGUAGE);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === 'sv' || stored === 'en') setLangState(stored);
-  }, []);
+export function LanguageProvider({
+  children,
+  initialLanguage = DEFAULT_LANGUAGE,
+}: {
+  children: ReactNode;
+  initialLanguage?: Language;
+}) {
+  const [lang, setLangState] = useState<Language>(initialLanguage);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -28,8 +29,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLang = useCallback((next: Language) => {
     setLangState(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
-    document.cookie = `${STORAGE_KEY}=${next}; path=/; max-age=31536000; samesite=lax`;
+    document.cookie = `${LANGUAGE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
   }, []);
 
   const value = useMemo<LanguageContextValue>(
