@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { cloneElement, isValidElement } from 'react';
+import { Children, cloneElement, isValidElement } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Loader2, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,7 @@ import type { AppointmentStatus } from '@/lib/types';
 
 function translateNode(node: ReactNode, translate: (text: string) => string): ReactNode {
   if (typeof node === 'string') return translate(node);
-  if (Array.isArray(node)) return node.map((child) => translateNode(child, translate));
+  if (Array.isArray(node)) return Children.map(node, (child) => translateNode(child, translate));
   if (isValidElement<{ children?: ReactNode }>(node) && node.props.children !== undefined) {
     return cloneElement(node, undefined, translateNode(node.props.children, translate));
   }
