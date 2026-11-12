@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AppointmentSource, AppointmentStatus } from '@prisma/client';
+import { AppointmentSource, AppointmentStatus } from '../../database/enums';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,

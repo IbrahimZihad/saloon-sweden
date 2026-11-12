@@ -6,8 +6,8 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { Response } from 'express';
+import { ForeignKeyConstraintError, UniqueConstraintError, ValidationError } from 'sequelize';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -31,22 +31,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = (b.message as string | string[]) ?? exception.message;
         error = (b.error as string) ?? exception.name;
       }
-    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      if (exception.code === 'P2002') {
-        status = HttpStatus.CONFLICT;
-        message = 'A record with these unique values already exists';
-        error = 'Conflict';
-      } else if (exception.code === 'P2003') {
-        status = HttpStatus.BAD_REQUEST;
-        message = 'Related record does not exist or is still referenced';
-        error = 'BadRequest';
-      } else if (exception.code === 'P2025') {
-        status = HttpStatus.NOT_FOUND;
-        message = 'Record not found';
-        error = 'NotFound';
-      } else {
-        this.logger.error(`Prisma error ${exception.code}`, exception.stack);
-      }
+    } else if (exception instanceof UniqueConstraintError) {
+      status = HttpStatus.CONFLICT;
+      message = 'A record with these unique values already exists';
+      error = 'Conflict';
+    } else if (exception instanceof ForeignKeyConstraintError) {
+      status = HttpStatus.BAD_REQUEST;
+      message = 'Related record does not exist or is still referenced';
+      error = 'BadRequest';
+    } else if (exception instanceof ValidationError) {
+      status = HttpStatus.BAD_REQUEST;
+      message = exception.errors.map((item) => item.message);
+      error = 'BadRequest';
     } else {
       this.logger.error(
         exception instanceof Error ? exception.stack ?? exception.message : String(exception),

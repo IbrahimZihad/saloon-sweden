@@ -4,7 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
-import { PrismaModule } from './prisma/prisma.module';
+import { DatabaseModule } from './database/database.module';
 import { SettingsModule } from './settings/settings.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuthModule } from './auth/auth.module';
@@ -32,7 +32,7 @@ import { HealthController } from './health.controller';
       { name: 'default', ttl: 60000, limit: 120 },
     ]),
     ScheduleModule.forRoot(),
-    PrismaModule,
+    DatabaseModule,
     SettingsModule,
     NotificationsModule,
     AuthModule,
