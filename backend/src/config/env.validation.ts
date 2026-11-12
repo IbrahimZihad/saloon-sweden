@@ -28,6 +28,7 @@ export const envSchema = z.object({
   EMAIL_PASSWORD: optionalString,
   EMAIL_FROM: z.string().default('Salon <no-reply@example.com>'),
   UPLOAD_DIRECTORY: z.string().default('uploads'),
+  DATABASE_CA_CERT: z.string().optional(),
   SEED_DEMO: z
     .enum(['true', 'false'])
     .default('false')

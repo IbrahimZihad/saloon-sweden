@@ -6,7 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { join } from 'path';
+import { resolve } from 'path';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { DecimalSerializerInterceptor } from './common/interceptors/decimal-serializer.interceptor';
@@ -41,7 +41,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new DecimalSerializerInterceptor());
 
   // Uploaded images are served as static files with random UUID filenames.
-  const uploadDir = join(process.cwd(), config.get<string>('UPLOAD_DIRECTORY') ?? 'uploads');
+  const uploadDir = resolve(process.cwd(), config.get<string>('UPLOAD_DIRECTORY') ?? 'uploads');
   app.useStaticAssets(uploadDir, { prefix: '/uploads/' });
 
   const swaggerConfig = new DocumentBuilder()

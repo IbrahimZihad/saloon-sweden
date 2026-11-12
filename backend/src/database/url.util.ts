@@ -44,12 +44,22 @@ function resolveCertPath(path: string): string {
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
 
+/** Certificate supplied as inline PEM through an environment variable. */
+function certificateFromEnv(): Buffer | undefined {
+  const pem = process.env.DATABASE_CA_CERT?.replace(/\\n/g, '\n').trim();
+  return pem ? Buffer.from(pem) : undefined;
+}
+
 /**
  * Parses a MySQL connection URL, accepting the TLS query parameter spellings
  * used by the common MySQL clients and providers:
  *
  * - Prisma:        `sslaccept`, `sslcert`, `sslmode`, `ssl`
  * - MySQL Connector/J & Aiven: `ssl-mode`, `ssl-ca`
+ *
+ * The CA certificate may also be supplied as PEM text in `DATABASE_CA_CERT`,
+ * which is convenient on hosts where committing a certificate file is not
+ * possible (Render, Docker secrets, etc.).
  *
  * `ssl-mode=REQUIRED` encrypts without verifying the CA, while `VERIFY_CA` and
  * `VERIFY_IDENTITY` verify it. `DISABLED` turns TLS off.
@@ -63,22 +73,20 @@ export function parseDatabaseUrl(rawUrl: string): ParsedDatabaseUrl {
   const params = url.searchParams;
   const certPath = params.get('sslcert') ?? params.get('ssl-ca') ?? params.get('sslca') ?? undefined;
   // Normalise `verify_ca` and `verify-identity` to a single spelling.
-  const mode = (
-    params.get('sslaccept') ??
-    params.get('sslmode') ??
-    params.get('ssl-mode') ??
-    ''
-  )
+  const mode = (params.get('sslaccept') ?? params.get('sslmode') ?? params.get('ssl-mode') ?? '')
     .toLowerCase()
     .replace(/_/g, '-');
   const sslFlag = (params.get('ssl') ?? '').toLowerCase();
+  const caFromEnv = certificateFromEnv();
 
+  const disabled = DISABLE_MODES.has(mode) || DISABLE_MODES.has(sslFlag);
   const wantsSsl =
-    Boolean(certPath) ||
-    VERIFY_MODES.has(mode) ||
-    ENCRYPT_ONLY_MODES.has(mode) ||
-    (mode === '' && TRUTHY.has(sslFlag)) ||
-    (mode !== '' && !DISABLE_MODES.has(mode));
+    !disabled &&
+    (Boolean(certPath) ||
+      Boolean(caFromEnv) ||
+      VERIFY_MODES.has(mode) ||
+      ENCRYPT_ONLY_MODES.has(mode) ||
+      TRUTHY.has(sslFlag));
 
   let ssl: SslOptions | undefined;
   if (wantsSsl) {
@@ -89,17 +97,19 @@ export function parseDatabaseUrl(rawUrl: string): ParsedDatabaseUrl {
         throw new Error(
           `DATABASE_URL points to a CA certificate that does not exist: ${certPath} ` +
             `(resolved to ${resolved}). Download the CA certificate from your MySQL ` +
-            'provider and place it there.',
+            'provider and place it there, or supply the PEM text in DATABASE_CA_CERT.',
         );
       }
       ca = readFileSync(resolved);
+    } else if (caFromEnv) {
+      ca = caFromEnv;
     }
 
     const rejectUnauthorized = VERIFY_MODES.has(mode)
       ? true
       : ENCRYPT_ONLY_MODES.has(mode)
         ? false
-        : !DISABLE_MODES.has(mode);
+        : !disabled;
 
     ssl = { rejectUnauthorized, ...(ca ? { ca } : {}) };
   }

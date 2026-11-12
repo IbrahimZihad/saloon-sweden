@@ -79,3 +79,33 @@ describe('parseDatabaseUrl', () => {
     expect(() => parseDatabaseUrl('postgres://u:p@db.example.com/salon')).toThrow(/must be a MySQL/);
   });
 });
+
+describe('DATABASE_CA_CERT', () => {
+  const original = process.env.DATABASE_CA_CERT;
+  const pem = '-----BEGIN CERTIFICATE-----\ninline\n-----END CERTIFICATE-----';
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.DATABASE_CA_CERT;
+    else process.env.DATABASE_CA_CERT = original;
+  });
+
+  it('enables verified TLS from inline PEM', () => {
+    process.env.DATABASE_CA_CERT = pem;
+    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon?ssl-mode=VERIFY_CA');
+    expect(parsed.ssl?.rejectUnauthorized).toBe(true);
+    expect(parsed.ssl?.ca?.toString()).toBe(pem);
+  });
+
+  it('accepts escaped newlines, as pasted into a hosting dashboard', () => {
+    process.env.DATABASE_CA_CERT = pem.replace(/\n/g, '\\n');
+    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon');
+    expect(parsed.ssl?.ca?.toString()).toBe(pem);
+    expect(parsed.ssl?.rejectUnauthorized).toBe(true);
+  });
+
+  it('does not override an explicit DISABLED mode', () => {
+    process.env.DATABASE_CA_CERT = pem;
+    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon?ssl-mode=DISABLED');
+    expect(parsed.ssl).toBeUndefined();
+  });
+});
