@@ -17,6 +17,9 @@ frontend/.env.local
 # Uploads (user-provided files)
 backend/uploads/
 
+# TLS certificates (Aiven CA)
+backend/certs/
+
 # Local MySQL runtime data (never commit the database)
 mysqldata/
 
