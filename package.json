@@ -2,7 +2,7 @@
   "name": "saloon-sweden",
   "version": "1.0.0",
   "private": true,
-  "description": "Premium Swedish salon website with online appointment booking (Next.js + NestJS + MySQL/Sequelize)",
+  "description": "Premium Swedish salon website with online appointment booking (Next.js + Express + MySQL/Sequelize)",
   "scripts": {
     "dev:backend": "npm --prefix backend run start:dev",
     "dev:frontend": "npm --prefix frontend run dev",

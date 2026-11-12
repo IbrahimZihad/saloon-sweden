@@ -1,18 +1,11 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { BadRequestException, Logger, NotFoundException, UnauthorizedException } from '../common/http-exceptions';
+import { RuntimeConfig } from '../common/runtime-config';
+import { JwtTokenService } from '../common/jwt-token.service';
 import { compare, hash } from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import type { StringValue } from 'ms';
 import { Staff, User } from '../database/models';
 import { MailService } from '../notifications/mail.service';
-import { AuthUser } from './decorators/current-user.decorator';
+import { AuthUser } from './auth.types';
 import { ChangePasswordDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 
 export interface LoginResult {
@@ -22,13 +15,12 @@ export interface LoginResult {
 
 const staffInclude = { model: Staff, as: 'staffMember', attributes: ['id'] };
 
-@Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly jwt: JwtService,
-    private readonly config: ConfigService,
+    private readonly jwt: JwtTokenService,
+    private readonly config: RuntimeConfig,
     private readonly mail: MailService,
   ) {}
 
@@ -48,7 +40,7 @@ export class AuthService {
       { sub: user.id, email: user.email, role: user.role },
       {
         secret: this.config.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: (this.config.get<string>('JWT_EXPIRES_IN') ?? '1d') as StringValue,
+        expiresIn: this.config.get<string>('JWT_EXPIRES_IN') ?? '1d',
       },
     );
 

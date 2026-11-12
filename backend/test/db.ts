@@ -26,6 +26,6 @@ export async function closeDatabase(): Promise<void> {
   try {
     await sequelize.close();
   } catch {
-    // The Nest app may already have closed the shared instance in afterAll.
+    // The Express app may already have closed the shared instance in afterAll.
   }
 }

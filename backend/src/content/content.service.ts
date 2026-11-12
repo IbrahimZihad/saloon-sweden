@@ -1,6 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEmail,
@@ -17,36 +16,36 @@ import { ContactMessage, Testimonial } from '../database/models';
 import { paginated } from '../common/dto/pagination.dto';
 
 export class CreateContactMessageDto {
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(160)
+   @IsString() @MinLength(2) @MaxLength(160)
   name!: string;
 
-  @ApiProperty() @IsEmail() @MaxLength(190)
+   @IsEmail() @MaxLength(190)
   email!: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40)
+   @IsOptional() @IsString() @MaxLength(40)
   phone?: string;
 
-  @ApiProperty() @IsString() @MinLength(5) @MaxLength(5000)
+   @IsString() @MinLength(5) @MaxLength(5000)
   message!: string;
 }
 
 export class TestimonialDto {
-  @ApiProperty() @IsString() @MaxLength(120)
+   @IsString() @MaxLength(120)
   authorName!: string;
 
-  @ApiProperty() @IsString() @MaxLength(2000)
+   @IsString() @MaxLength(2000)
   textSv!: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000)
+   @IsOptional() @IsString() @MaxLength(2000)
   textEn?: string;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5)
+   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5)
   rating?: number;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(0)
+   @IsOptional() @Type(() => Number) @IsInt() @Min(0)
   sortOrder?: number;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean()
+   @IsOptional() @IsBoolean()
   active?: boolean;
 }
 
@@ -54,7 +53,6 @@ function clean(value: string): string {
   return sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }).trim();
 }
 
-@Injectable()
 export class ContentService {
   // -- Public ---------------------------------------------------------------
 

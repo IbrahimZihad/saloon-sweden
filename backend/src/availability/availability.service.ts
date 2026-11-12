@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException } from '../common/http-exceptions';
 import Decimal from 'decimal.js';
 import { Op, Transaction } from 'sequelize';
 import { AppointmentStatus } from '../database/enums';
@@ -53,7 +53,6 @@ interface AppointmentWindow {
   endsAt: Date;
 }
 
-@Injectable()
 export class AvailabilityService {
   constructor(private readonly settings: SettingsService) {}
 

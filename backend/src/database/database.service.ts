@@ -1,18 +1,15 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Transaction } from 'sequelize';
 import type { QueryOptions } from 'sequelize';
 import type { Sequelize } from 'sequelize-typescript';
-import { SEQUELIZE } from './database.constants';
 
-@Injectable()
-export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  constructor(@Inject(SEQUELIZE) readonly sequelize: Sequelize) {}
+export class DatabaseService {
+  constructor(readonly sequelize: Sequelize) {}
 
-  async onModuleInit(): Promise<void> {
+  async connect(): Promise<void> {
     await this.sequelize.authenticate();
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async close(): Promise<void> {
     await this.sequelize.close();
   }
 

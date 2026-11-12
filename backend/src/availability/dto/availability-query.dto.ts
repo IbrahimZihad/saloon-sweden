@@ -1,4 +1,3 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -18,7 +17,7 @@ function toStringArray(value: unknown): string[] {
 }
 
 export class AvailabilityQueryDto {
-  @ApiProperty({ type: [String], description: 'Selected service IDs (1-10), comma-separated in query strings' })
+
   @Transform(({ value }) => toStringArray(value))
   @IsArray()
   @ArrayMinSize(1)
@@ -26,14 +25,13 @@ export class AvailabilityQueryDto {
   @IsString({ each: true })
   serviceIds!: string[];
 
-  @ApiPropertyOptional({ description: 'Specific staff ID; omit or "any" for any available stylist' })
   @IsOptional()
   @IsString()
   staffId?: string;
 }
 
 export class AvailabilitySlotsQueryDto extends AvailabilityQueryDto {
-  @ApiProperty({ description: 'Local date YYYY-MM-DD (Europe/Stockholm)' })
+
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
   date!: string;

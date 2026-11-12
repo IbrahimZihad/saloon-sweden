@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
 import { hash } from 'bcryptjs';
 import {
   IsBoolean,
@@ -19,37 +14,36 @@ import { Role } from '../database/enums';
 import { Staff, User } from '../database/models';
 
 export class CreateUserDto {
-  @ApiProperty() @IsString() @MaxLength(120)
+   @IsString() @MaxLength(120)
   name!: string;
 
-  @ApiProperty() @IsEmail() @MaxLength(190)
+   @IsEmail() @MaxLength(190)
   email!: string;
 
-  @ApiProperty() @IsString() @MinLength(10) @MaxLength(128)
+   @IsString() @MinLength(10) @MaxLength(128)
   password!: string;
 
-  @ApiProperty({ enum: Role }) @IsEnum(Role)
+   @IsEnum(Role)
   role!: Role;
 
-  @ApiPropertyOptional({ description: 'Link to a staff profile (STAFF role)' })
   @IsOptional() @IsString()
   staffId?: string;
 }
 
 export class UpdateUserDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120)
+   @IsOptional() @IsString() @MaxLength(120)
   name?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsEmail() @MaxLength(190)
+   @IsOptional() @IsEmail() @MaxLength(190)
   email?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsEnum(Role)
+   @IsOptional() @IsEnum(Role)
   role?: Role;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean()
+   @IsOptional() @IsBoolean()
   active?: boolean;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(10) @MaxLength(128)
+   @IsOptional() @IsString() @MinLength(10) @MaxLength(128)
   password?: string;
 }
 
@@ -61,7 +55,6 @@ const staffInclude = {
   required: false,
 };
 
-@Injectable()
 export class UsersService {
   findAll() {
     return User.findAll({

@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { Op, col, fn } from 'sequelize';
 import {
@@ -16,7 +15,6 @@ const appointmentIncludes = [
   { model: AppointmentService, as: 'services', attributes: ['serviceNameSv'] },
 ];
 
-@Injectable()
 export class DashboardService {
   constructor(private readonly settings: SettingsService) {}
 

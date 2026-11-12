@@ -1,9 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
+import { RuntimeConfig } from '../common/runtime-config';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import { unlink, writeFile } from 'fs/promises';
@@ -33,11 +29,10 @@ function hasValidMagicBytes(buffer: Buffer, mime: string): boolean {
   return false;
 }
 
-@Injectable()
 export class UploadsService {
   readonly uploadDir: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: RuntimeConfig) {
     this.uploadDir = resolve(process.cwd(), this.config.get<string>('UPLOAD_DIRECTORY') ?? 'uploads');
     if (!existsSync(this.uploadDir)) {
       mkdirSync(this.uploadDir, { recursive: true });

@@ -33,7 +33,7 @@ prototype.
 | Layer     | Technology                                                            |
 | --------- | --------------------------------------------------------------------- |
 | Frontend  | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Lucide React · React Hook Form · Zod · Recharts |
-| Backend   | NestJS 11 · TypeScript · REST · JWT (HTTP-only cookie) · modular architecture · Swagger |
+| Backend   | Node.js · Express 5 · TypeScript · REST · JWT (HTTP-only cookie) · Swagger UI |
 | Database  | **MySQL 8.0+** · Sequelize ORM 6 (`sequelize-typescript`) · model-driven schema sync |
 | Email     | Nodemailer (SMTP) · database-backed queue with retries                  |
 | Testing   | Jest + Supertest (backend, isolated test DB) · Vitest + Testing Library (frontend) · Playwright (browser e2e) |
@@ -44,12 +44,12 @@ prototype.
 
 ```
 saloon-sweden/
-├── backend/                 # NestJS REST API (port 3001, prefix /api)
+├── backend/                 # Express REST API (port 3001, prefix /api)
 │   ├── src/
-│   │   ├── main.ts          # bootstrap: helmet, CORS, cookies, validation, Swagger, static uploads
-│   │   ├── app.module.ts
+│   │   ├── main.ts          # Node.js process bootstrap and graceful shutdown
+│   │   ├── app.ts           # Express middleware, API routes, validation and error handling
 │   │   ├── database/        # Sequelize connection, 18 models, seeders, sync/seed scripts
-│   │   └── <modules>/       # auth, appointments, availability, services, categories, staff,
+│   │   └── <domains>/       # auth, appointments, availability, services, categories, staff,
 │   │                        # customers, dashboard, settings, business-hours, content,
 │   │                        # notifications, uploads, users, config, common
 │   ├── test/                # integration + seeder-idempotency specs (isolated test DB)
@@ -134,7 +134,7 @@ npm --prefix backend run db:seed   # idempotent seed (safe to re-run)
 From the repository root, in two terminals:
 
 ```bash
-npm run dev:backend     # NestJS watch mode → http://localhost:3001/api
+npm run dev:backend     # Express API watch mode → http://localhost:3001/api
 npm run dev:frontend    # Next.js dev      → http://localhost:3000
 ```
 
@@ -330,8 +330,8 @@ DST handling (`date-fns-tz`). The UI uses a 24-hour clock. Weekdays are indexed
   HTTPS** because the cookie is `secure`.
 - RBAC with `ADMIN` / `STAFF` roles; admin-only routes (e.g. user management,
   customer export/erasure) reject `STAFF`.
-- Global rate limiting (`@nestjs/throttler`), `helmet`, strict CORS
-  (`FRONTEND_URL`, credentials), and a global `ValidationPipe`
+- Global and endpoint-specific rate limiting (`express-rate-limit`), `helmet`,
+  strict CORS (`FRONTEND_URL`, credentials), and DTO validation
   (`whitelist`, `forbidNonWhitelisted`, `transform`).
 - Password reset via `POST /api/auth/forgot-password` and `POST /api/auth/reset-password`.
 
@@ -409,8 +409,8 @@ directory across deploys (it is git-ignored) and include it in backups.
   `npm ci --include=dev && npm run build`, and **Start Command** to
   `npm run start:render` (runs `db:sync`, `db:seed`, then `node dist/main.js`).
   `--include=dev` is required because `NODE_ENV=production` makes npm skip
-  `@nestjs/cli` and `tsx`, and the build needs the CLI. `start:render` uses the
-  compiled `dist/database/*.js` scripts, so it does not need `tsx` at runtime.
+  TypeScript build and database-script tools. `start:render` uses the compiled
+  `dist/database/*.js` scripts, so it does not need `tsx` at runtime.
   Set `NODE_ENV=production`, `FRONTEND_URL=https://your-vercel-domain`, a strong
   `JWT_SECRET`, and SMTP variables if email is enabled. Use a persistent disk (for
   example mounted at `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`
@@ -465,7 +465,7 @@ This workspace was verified end-to-end:
 - **Frontend:** 41 Vitest unit/component tests pass; 3 Playwright browser e2e tests
   pass (booking flow → confirmation reference, admin login → dashboard,
   unauthenticated redirect).
-- **Builds:** backend `nest build` and frontend `next build` both succeed.
+- **Builds:** backend `tsc -p tsconfig.build.json` and frontend `next build` succeed.
 - **Live:** both apps run; a browser booking was created and confirmed persisted in
   MySQL with a DST-correct UTC instant (`10:00 Stockholm` → `09:00Z` in winter).
 - **Fresh DB:** create → sync → seed → run verified on a brand-new database.

@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Logger, NotFoundException } from '../common/http-exceptions';
 import sanitizeHtml from 'sanitize-html';
 import { Op, QueryTypes, Transaction, UniqueConstraintError, col, fn } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
@@ -70,7 +64,6 @@ interface BookParams {
   privileged: boolean;
 }
 
-@Injectable()
 export class AppointmentsService {
   private readonly logger = new Logger(AppointmentsService.name);
 

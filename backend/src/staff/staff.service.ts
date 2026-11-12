@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
 import { Op, Transaction, type Includeable } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -34,7 +34,6 @@ const staffIncludes: Includeable[] = [
   },
 ];
 
-@Injectable()
 export class StaffService {
   constructor(private readonly database: DatabaseService) {}
 

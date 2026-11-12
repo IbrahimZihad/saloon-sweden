@@ -1,15 +1,9 @@
 import { AddressInfo } from 'node:net';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import cookieParser from 'cookie-parser';
+import type { Express } from 'express';
+import type { Server } from 'node:http';
 import { Op } from 'sequelize';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { DecimalSerializerInterceptor } from '../src/common/interceptors/decimal-serializer.interceptor';
-import { NotificationsService } from '../src/notifications/notifications.service';
-import { MailService } from '../src/notifications/mail.service';
+import { createApp } from '../src/app';
 import { Appointment, Service, Staff } from '../src/database/models';
 import { closeDatabase, resetDatabase, seedAll } from './db';
 
@@ -33,7 +27,8 @@ interface Slot {
 const CUSTOMER_EMAIL = 'integration.kund@example.com';
 
 describe('App integration (isolated test database)', () => {
-  let app: INestApplication;
+  let app: Express;
+  let server: Server;
   let baseUrl: string;
   let adminCookie: string;
   let staffCookie: string;
@@ -47,34 +42,13 @@ describe('App integration (isolated test database)', () => {
     await resetDatabase();
     await seedAll();
 
-    // APP_GUARD is a multi-provider token that overrideProvider cannot replace,
-    // so neutralize the global throttler at the prototype for the whole suite.
-    jest.spyOn(ThrottlerGuard.prototype, 'canActivate').mockResolvedValue(true);
-
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      // No SMTP or cron during tests: bookings must succeed without email.
-      .overrideProvider(NotificationsService)
-      .useValue({ queueForAppointment: jest.fn().mockResolvedValue(undefined) })
-      .overrideProvider(MailService)
-      .useValue({ isConfigured: () => false, sendMail: jest.fn().mockResolvedValue(undefined) })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.use(cookieParser());
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: { enableImplicitConversion: false },
-      }),
-    );
-    app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(new DecimalSerializerInterceptor());
-    await app.init();
-    await app.listen(0);
-    const address = app.getHttpServer().address() as AddressInfo;
+    app = await createApp();
+    server = app.listen(0);
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${address.port}`;
 
     adminCookie = await login(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!);
@@ -114,7 +88,11 @@ describe('App integration (isolated test database)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await app?.close();
+    if (server?.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve());
+      });
+    }
     await closeDatabase();
   });
 

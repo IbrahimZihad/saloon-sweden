@@ -1,5 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Logger } from '../common/http-exceptions';
 import Decimal from 'decimal.js';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -44,7 +43,6 @@ const appointmentIncludes = [
   { model: AppointmentService, as: 'services' },
 ];
 
-@Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
@@ -127,7 +125,6 @@ export class NotificationsService {
   }
 
   /** Retries pending notifications that failed transiently. */
-  @Cron('*/5 * * * *')
   async retryPending(): Promise<void> {
     const pending = await EmailNotification.findAll({
       where: { status: NotificationStatus.PENDING, attempts: { [Op.lt]: MAX_ATTEMPTS } },
@@ -140,7 +137,6 @@ export class NotificationsService {
   }
 
   /** Daily reminders for tomorrow's confirmed appointments. */
-  @Cron('0 8 * * *', { timeZone: 'Europe/Stockholm' })
   async sendDailyReminders(): Promise<void> {
     const settings = await this.settings.getSettings();
     const tz = settings.timezone;

@@ -1,34 +1,30 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException } from '../common/http-exceptions';
 import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsBoolean, IsInt, Max, Min, ValidateNested } from 'class-validator';
 import { DatabaseService } from '../database/database.service';
 import { BusinessHours } from '../database/models';
 
 export class BusinessHourItemDto {
-  @ApiProperty({ description: '0 = Monday ... 6 = Sunday' })
+
   @Type(() => Number) @IsInt() @Min(0) @Max(6)
   dayOfWeek!: number;
 
-  @ApiProperty({ description: 'Minutes since midnight', example: 540 })
   @Type(() => Number) @IsInt() @Min(0) @Max(1439)
   openMinutes!: number;
 
-  @ApiProperty({ description: 'Minutes since midnight', example: 1080 })
   @Type(() => Number) @IsInt() @Min(0) @Max(1440)
   closeMinutes!: number;
 
-  @ApiProperty() @IsBoolean()
+  @IsBoolean()
   isClosed!: boolean;
 }
 
 export class SetBusinessHoursDto {
-  @ApiProperty({ type: [BusinessHourItemDto] })
+
   @IsArray() @ArrayMaxSize(7) @ValidateNested({ each: true }) @Type(() => BusinessHourItemDto)
   hours!: BusinessHourItemDto[];
 }
 
-@Injectable()
 export class BusinessHoursService {
   constructor(private readonly database: DatabaseService) {}
 

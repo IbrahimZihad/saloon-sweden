@@ -1,14 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
-import { Logger } from '@nestjs/common';
+import { Logger } from '../common/http-exceptions';
+import { RuntimeConfig } from '../common/runtime-config';
 
-@Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter | null = null;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: RuntimeConfig) {
     const host = this.config.get<string>('EMAIL_HOST');
     if (host) {
       this.transporter = nodemailer.createTransport({

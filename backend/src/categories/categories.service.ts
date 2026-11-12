@@ -1,8 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
 import { Service, ServiceCategory } from '../database/models';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
-@Injectable()
 export class CategoriesService {
   async findPublic() {
     return ServiceCategory.findAll({

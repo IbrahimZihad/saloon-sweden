@@ -1,8 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '../common/http-exceptions';
 import { BusinessSettings } from '../database/models';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
-@Injectable()
 export class SettingsService {
   async getSettings(): Promise<BusinessSettings> {
     const settings = await BusinessSettings.findByPk('singleton');

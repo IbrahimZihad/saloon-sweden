@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '../common/http-exceptions';
 import { Op, WhereOptions, fn, col } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -10,7 +10,6 @@ import {
 } from '../database/models';
 import { paginated } from '../common/dto/pagination.dto';
 
-@Injectable()
 export class CustomersService {
   constructor(private readonly database: DatabaseService) {}
 

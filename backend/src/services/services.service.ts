@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '../common/http-exceptions';
 import Decimal from 'decimal.js';
 import {
   AppointmentService,
@@ -20,7 +20,6 @@ function sortByCategoryAndOrder<
   );
 }
 
-@Injectable()
 export class ServicesService {
   async findPublic(categorySlug?: string) {
     const services = await Service.findAll({
