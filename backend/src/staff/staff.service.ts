@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { Op, Transaction } from 'sequelize';
+import { DatabaseService } from '../database/database.service';
+import {
+  Service,
+  Staff,
+  StaffBreak,
+  StaffService,
+  StaffTimeOff,
+  StaffWorkingHours,
+} from '../database/models';
 import {
   CreateStaffDto,
   CreateTimeOffDto,
@@ -9,46 +17,46 @@ import {
   UpdateStaffDto,
 } from './dto/staff.dto';
 
-const staffInclude = {
-  services: { include: { service: { select: { id: true, nameSv: true, nameEn: true, active: true } } } },
-  workingHours: { orderBy: { dayOfWeek: 'asc' as const } },
-  breaks: { orderBy: [{ dayOfWeek: 'asc' as const }, { startMinutes: 'asc' as const }] },
-} satisfies Prisma.StaffInclude;
+const staffIncludes = [
+  {
+    model: StaffService,
+    as: 'services',
+    include: [{ model: Service, as: 'service', attributes: ['id', 'nameSv', 'nameEn', 'active'] }],
+  },
+  { model: StaffWorkingHours, as: 'workingHours', order: [['dayOfWeek', 'ASC']] },
+  {
+    model: StaffBreak,
+    as: 'breaks',
+    order: [
+      ['dayOfWeek', 'ASC'],
+      ['startMinutes', 'ASC'],
+    ],
+  },
+];
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly database: DatabaseService) {}
 
   findPublic() {
-    return this.prisma.staff.findMany({
+    return Staff.findAll({
       where: { active: true },
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        jobTitle: true,
-        bio: true,
-        imageUrl: true,
-        services: { select: { serviceId: true } },
-      },
+      order: [['name', 'ASC']],
+      attributes: ['id', 'name', 'slug', 'jobTitle', 'bio', 'imageUrl'],
+      include: [{ model: StaffService, as: 'services', attributes: ['serviceId'] }],
     });
   }
 
   findAll() {
-    return this.prisma.staff.findMany({
-      orderBy: { name: 'asc' },
-      include: staffInclude,
-    });
+    return Staff.findAll({ order: [['name', 'ASC']], include: staffIncludes });
   }
 
   async findOne(id: string) {
-    const staff = await this.prisma.staff.findUnique({
-      where: { id },
-      include: {
-        ...staffInclude,
-        timeOffs: { orderBy: { startsAt: 'asc' } },
-      },
+    const staff = await Staff.findByPk(id, {
+      include: [
+        ...staffIncludes,
+        { model: StaffTimeOff, as: 'timeOffs', order: [['startsAt', 'ASC']] },
+      ],
     });
     if (!staff) throw new NotFoundException('Staff member not found');
     return staff;
@@ -57,38 +65,40 @@ export class StaffService {
   async create(dto: CreateStaffDto) {
     const { serviceIds, ...data } = dto;
     if (serviceIds?.length) await this.ensureServicesExist(serviceIds);
-    return this.prisma.staff.create({
-      data: {
-        ...data,
-        services: serviceIds?.length
-          ? { create: serviceIds.map((serviceId) => ({ serviceId })) }
-          : undefined,
-      },
-      include: staffInclude,
-    });
+    const staff = await Staff.create({ ...data });
+    if (serviceIds?.length) {
+      await StaffService.bulkCreate(
+        serviceIds.map((serviceId) => ({ staffId: staff.id, serviceId })),
+      );
+    }
+    return Staff.findByPk(staff.id, { include: staffIncludes });
   }
 
   async update(id: string, dto: UpdateStaffDto) {
     await this.findOne(id);
     const { serviceIds, ...data } = dto;
 
-    return this.prisma.$transaction(async (tx) => {
+    await this.database.transaction(async (transaction) => {
       if (serviceIds) {
-        await this.ensureServicesExist(serviceIds, tx);
-        await tx.staffService.deleteMany({ where: { staffId: id } });
+        await this.ensureServicesExist(serviceIds, transaction);
+        await StaffService.destroy({ where: { staffId: id }, transaction });
         if (serviceIds.length) {
-          await tx.staffService.createMany({
-            data: serviceIds.map((serviceId) => ({ staffId: id, serviceId })),
-          });
+          await StaffService.bulkCreate(
+            serviceIds.map((serviceId) => ({ staffId: id, serviceId })),
+            { transaction },
+          );
         }
       }
-      return tx.staff.update({ where: { id }, data, include: staffInclude });
+      await Staff.update(data, { where: { id }, transaction });
     });
+
+    return this.findOne(id);
   }
 
   async deactivate(id: string) {
     await this.findOne(id);
-    return this.prisma.staff.update({ where: { id }, data: { active: false } });
+    await Staff.update({ active: false }, { where: { id } });
+    return Staff.findByPk(id);
   }
 
   async setWorkingHours(id: string, dto: SetWorkingHoursDto) {
@@ -102,17 +112,20 @@ export class StaffService {
     if (new Set(days).size !== days.length) {
       throw new BadRequestException('Duplicate weekday in schedule');
     }
-    return this.prisma.$transaction(async (tx) => {
-      await tx.staffWorkingHours.deleteMany({ where: { staffId: id } });
+
+    await this.database.transaction(async (transaction) => {
+      await StaffWorkingHours.destroy({ where: { staffId: id }, transaction });
       if (dto.hours.length) {
-        await tx.staffWorkingHours.createMany({
-          data: dto.hours.map((h) => ({ staffId: id, ...h })),
-        });
+        await StaffWorkingHours.bulkCreate(
+          dto.hours.map((h) => ({ staffId: id, ...h })),
+          { transaction },
+        );
       }
-      return tx.staffWorkingHours.findMany({
-        where: { staffId: id },
-        orderBy: { dayOfWeek: 'asc' },
-      });
+    });
+
+    return StaffWorkingHours.findAll({
+      where: { staffId: id },
+      order: [['dayOfWeek', 'ASC']],
     });
   }
 
@@ -123,15 +136,18 @@ export class StaffService {
         throw new BadRequestException('Break must start before it ends');
       }
     }
-    return this.prisma.$transaction(async (tx) => {
-      await tx.staffBreak.deleteMany({ where: { staffId: id } });
+
+    await this.database.transaction(async (transaction) => {
+      await StaffBreak.destroy({ where: { staffId: id }, transaction });
       if (dto.breaks.length) {
-        await tx.staffBreak.createMany({
-          data: dto.breaks.map((b) => ({ staffId: id, ...b })),
-        });
+        await StaffBreak.bulkCreate(
+          dto.breaks.map((b) => ({ staffId: id, ...b })),
+          { transaction },
+        );
       }
-      return tx.staffBreak.findMany({ where: { staffId: id } });
     });
+
+    return StaffBreak.findAll({ where: { staffId: id } });
   }
 
   async addTimeOff(id: string, dto: CreateTimeOffDto) {
@@ -141,24 +157,30 @@ export class StaffService {
     if (startsAt >= endsAt) {
       throw new BadRequestException('Time off must start before it ends');
     }
-    return this.prisma.staffTimeOff.create({
-      data: { staffId: id, startsAt, endsAt, reason: dto.reason },
+    return StaffTimeOff.create({
+      staffId: id,
+      startsAt,
+      endsAt,
+      reason: dto.reason ?? null,
     });
   }
 
   async removeTimeOff(staffId: string, timeOffId: string): Promise<void> {
-    const timeOff = await this.prisma.staffTimeOff.findFirst({
+    const timeOff = await StaffTimeOff.findOne({
       where: { id: timeOffId, staffId },
     });
     if (!timeOff) throw new NotFoundException('Time off not found');
-    await this.prisma.staffTimeOff.delete({ where: { id: timeOffId } });
+    await timeOff.destroy();
   }
 
   private async ensureServicesExist(
     serviceIds: string[],
-    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    transaction?: Transaction,
   ): Promise<void> {
-    const count = await tx.service.count({ where: { id: { in: serviceIds } } });
+    const count = await Service.count({
+      where: { id: { [Op.in]: serviceIds } },
+      ...(transaction ? { transaction } : {}),
+    });
     if (count !== new Set(serviceIds).size) {
       throw new BadRequestException('One or more services do not exist');
     }

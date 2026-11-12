@@ -1,6 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AppointmentStatus, Prisma, Service } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import Decimal from 'decimal.js';
+import { Op, Transaction } from 'sequelize';
+import { AppointmentStatus } from '../database/enums';
+import {
+  Appointment,
+  BusinessHours,
+  Service,
+  ServiceCategory,
+  Staff,
+  StaffBreak,
+  StaffService,
+  StaffTimeOff,
+  StaffWorkingHours,
+} from '../database/models';
 import { SettingsService } from '../settings/settings.service';
 import {
   addDaysToDateStr,
@@ -15,7 +27,7 @@ import {
 export interface ResolvedServices {
   services: Service[];
   durationMinutes: number;
-  totalPrice: Prisma.Decimal;
+  totalPrice: Decimal;
 }
 
 export interface TimeSlot {
@@ -35,12 +47,15 @@ interface StaffContext {
   timeOffs: { startsAt: Date; endsAt: Date }[];
 }
 
+interface AppointmentWindow {
+  staffId: string;
+  startsAt: Date;
+  endsAt: Date;
+}
+
 @Injectable()
 export class AvailabilityService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly settings: SettingsService,
-  ) {}
+  constructor(private readonly settings: SettingsService) {}
 
   /** Validates services and computes the exact appointment duration and price. */
   async resolveServices(serviceIds: string[]): Promise<ResolvedServices> {
@@ -48,50 +63,71 @@ export class AvailabilityService {
     if (uniqueIds.length === 0) {
       throw new BadRequestException('Select at least one service');
     }
-    const services = await this.prisma.service.findMany({
-      where: { id: { in: uniqueIds }, active: true, category: { active: true } },
+    const services = await Service.findAll({
+      where: { id: { [Op.in]: uniqueIds }, active: true },
+      include: [{ model: ServiceCategory, as: 'category', where: { active: true }, required: true }],
     });
     if (services.length !== uniqueIds.length) {
       throw new BadRequestException('One or more selected services are unavailable');
     }
-    const durationMinutes = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const durationMinutes = services.reduce((sum, service) => sum + service.durationMinutes, 0);
     if (durationMinutes > 480) {
       throw new BadRequestException('Combined service duration exceeds the maximum appointment length');
     }
-    const totalPrice = services.reduce((sum, s) => sum.plus(s.price), new Prisma.Decimal(0));
+    const totalPrice = services.reduce(
+      (sum, service) => sum.plus(new Decimal(service.price)),
+      new Decimal(0),
+    );
     return { services, durationMinutes, totalPrice };
   }
 
   /** Staff qualified for ALL selected services. */
   async qualifiedStaff(serviceIds: string[], staffId?: string): Promise<StaffContext[]> {
     const uniqueIds = [...new Set(serviceIds)];
-    const where: Prisma.StaffWhereInput = {
-      active: true,
-      services: { some: { serviceId: { in: uniqueIds } } },
-      ...(staffId && staffId !== 'any' ? { id: staffId } : {}),
-    };
-    const candidates = await this.prisma.staff.findMany({
-      where,
-      include: {
-        services: { select: { serviceId: true } },
-        workingHours: true,
-        breaks: true,
-        timeOffs: true,
+    const candidates = await Staff.findAll({
+      where: {
+        active: true,
+        ...(staffId && staffId !== 'any' ? { id: staffId } : {}),
       },
+      include: [
+        {
+          model: StaffService,
+          as: 'services',
+          attributes: ['serviceId'],
+          where: { serviceId: { [Op.in]: uniqueIds } },
+          required: false,
+        },
+        { model: StaffWorkingHours, as: 'workingHours' },
+        { model: StaffBreak, as: 'breaks' },
+        { model: StaffTimeOff, as: 'timeOffs' },
+      ],
     });
+
     const qualified = candidates.filter((staff) => {
-      const assigned = new Set(staff.services.map((s) => s.serviceId));
+      const assigned = new Set((staff.services ?? []).map((service) => service.serviceId));
       return uniqueIds.every((id) => assigned.has(id));
     });
     if (staffId && staffId !== 'any' && qualified.length === 0) {
       throw new BadRequestException('Selected staff member cannot perform all chosen services');
     }
-    return qualified.map((s) => ({
-      id: s.id,
-      name: s.name,
-      workingHours: s.workingHours,
-      breaks: s.breaks,
-      timeOffs: s.timeOffs,
+
+    return qualified.map((staff) => ({
+      id: staff.id,
+      name: staff.name,
+      workingHours: (staff.workingHours ?? []).map((hours) => ({
+        dayOfWeek: hours.dayOfWeek,
+        startMinutes: hours.startMinutes,
+        endMinutes: hours.endMinutes,
+      })),
+      breaks: (staff.breaks ?? []).map((item) => ({
+        dayOfWeek: item.dayOfWeek,
+        startMinutes: item.startMinutes,
+        endMinutes: item.endMinutes,
+      })),
+      timeOffs: (staff.timeOffs ?? []).map((timeOff) => ({
+        startsAt: timeOff.startsAt,
+        endsAt: timeOff.endsAt,
+      })),
     }));
   }
 
@@ -103,8 +139,8 @@ export class AvailabilityService {
     const staff = await this.qualifiedStaff(serviceIds, staffId);
     if (staff.length === 0) return { dates: [] };
 
-    const businessHours = await this.prisma.businessHours.findMany();
-    const hoursByDay = new Map(businessHours.map((h) => [h.dayOfWeek, h]));
+    const businessHours = await BusinessHours.findAll();
+    const hoursByDay = new Map(businessHours.map((hours) => [hours.dayOfWeek, hours]));
     const today = todayLocalStr(tz);
     const now = new Date();
     const earliest = new Date(now.getTime() + settings.minBookingNoticeMinutes * 60_000);
@@ -118,25 +154,26 @@ export class AvailabilityService {
 
       const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
       const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
-      const appointments = await this.prisma.appointment.findMany({
+      const appointments = (await Appointment.findAll({
         where: {
-          staffId: { in: staff.map((s) => s.id) },
-          status: { in: this.reservingStatuses(settings.pendingReservesTime) },
-          startsAt: { lt: dayEnd },
-          endsAt: { gt: dayStart },
+          staffId: { [Op.in]: staff.map((member) => member.id) },
+          status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
+          startsAt: { [Op.lt]: dayEnd },
+          endsAt: { [Op.gt]: dayStart },
         },
-        select: { staffId: true, startsAt: true, endsAt: true },
-      });
+        attributes: ['staffId', 'startsAt', 'endsAt'],
+        raw: true,
+      })) as unknown as AppointmentWindow[];
 
       const hasSlot = staff.some((member) => {
-        const hours = member.workingHours.find((h) => h.dayOfWeek === weekday);
+        const hours = member.workingHours.find((item) => item.dayOfWeek === weekday);
         if (!hours) return false;
         const slots = this.computeDaySlots(
           member,
           dateStr,
           durationMinutes,
           business,
-          appointments.filter((a) => a.staffId === member.id),
+          appointments.filter((appointment) => appointment.staffId === member.id),
           settings.appointmentIntervalMinutes,
           earliest,
           tz,
@@ -167,20 +204,21 @@ export class AvailabilityService {
     const { durationMinutes } = await this.resolveServices(serviceIds);
     const staff = await this.qualifiedStaff(serviceIds, staffId);
     const weekday = weekdayFromDateStr(dateStr);
-    const business = await this.prisma.businessHours.findUnique({ where: { dayOfWeek: weekday } });
+    const business = await BusinessHours.findOne({ where: { dayOfWeek: weekday } });
 
     const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
     const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
     const appointments = staff.length
-      ? await this.prisma.appointment.findMany({
+      ? ((await Appointment.findAll({
           where: {
-            staffId: { in: staff.map((s) => s.id) },
-            status: { in: this.reservingStatuses(settings.pendingReservesTime) },
-            startsAt: { lt: dayEnd },
-            endsAt: { gt: dayStart },
+            staffId: { [Op.in]: staff.map((member) => member.id) },
+            status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
+            startsAt: { [Op.lt]: dayEnd },
+            endsAt: { [Op.gt]: dayStart },
           },
-          select: { staffId: true, startsAt: true, endsAt: true },
-        })
+          attributes: ['staffId', 'startsAt', 'endsAt'],
+          raw: true,
+        })) as unknown as AppointmentWindow[])
       : [];
 
     const earliest = new Date(Date.now() + settings.minBookingNoticeMinutes * 60_000);
@@ -193,7 +231,7 @@ export class AvailabilityService {
           dateStr,
           durationMinutes,
           business,
-          appointments.filter((a) => a.staffId === member.id),
+          appointments.filter((appointment) => appointment.staffId === member.id),
           settings.appointmentIntervalMinutes,
           earliest,
           tz,
@@ -211,17 +249,18 @@ export class AvailabilityService {
       }
     }
 
-    slots.sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.staffName.localeCompare(b.staffName, 'sv'));
+    slots.sort(
+      (a, b) => a.startsAt.localeCompare(b.startsAt) || a.staffName.localeCompare(b.staffName, 'sv'),
+    );
     return { date: dateStr, durationMinutes, slots };
   }
 
   /**
    * Revalidates a concrete interval inside the booking transaction.
    * The caller must already hold the staff/day schedule lock.
-   * `tx` is the interactive transaction client.
    */
   async assertSlotAvailable(
-    tx: Prisma.TransactionClient,
+    tx: Transaction,
     params: {
       staffId: string;
       serviceIds: string[];
@@ -260,24 +299,29 @@ export class AvailabilityService {
     }
     const weekday = weekdayFromDateStr(dateStr);
 
-    const business = await tx.businessHours.findUnique({ where: { dayOfWeek: weekday } });
+    const business = await BusinessHours.findOne({ where: { dayOfWeek: weekday }, transaction: tx });
     if (!business || business.isClosed) {
       throw new BadRequestException('The salon is closed on the selected day');
     }
 
-    const staff = await tx.staff.findUnique({
-      where: { id: staffId },
-      include: { workingHours: true, breaks: true, timeOffs: true, services: true },
+    const staff = await Staff.findByPk(staffId, {
+      include: [
+        { model: StaffWorkingHours, as: 'workingHours' },
+        { model: StaffBreak, as: 'breaks' },
+        { model: StaffTimeOff, as: 'timeOffs' },
+        { model: StaffService, as: 'services' },
+      ],
+      transaction: tx,
     });
     if (!staff || !staff.active) {
       throw new BadRequestException('Staff member is not available');
     }
-    const assigned = new Set(staff.services.map((s) => s.serviceId));
+    const assigned = new Set((staff.services ?? []).map((service) => service.serviceId));
     if (!params.serviceIds.every((id) => assigned.has(id))) {
       throw new BadRequestException('Staff member is not qualified for all selected services');
     }
 
-    const hours = staff.workingHours.find((h) => h.dayOfWeek === weekday);
+    const hours = (staff.workingHours ?? []).find((item) => item.dayOfWeek === weekday);
     if (!hours) {
       throw new BadRequestException('Staff member does not work on the selected day');
     }
@@ -290,29 +334,35 @@ export class AvailabilityService {
 
     const startMinutes = this.minutesOfLocal(startsAt, tz);
     const endMinutes = this.minutesOfLocal(endsAt, tz);
-    const hitsBreak = staff.breaks.some(
-      (b) => b.dayOfWeek === weekday && startMinutes < b.endMinutes && b.startMinutes < endMinutes,
+    const hitsBreak = (staff.breaks ?? []).some(
+      (item) =>
+        item.dayOfWeek === weekday &&
+        startMinutes < item.endMinutes &&
+        item.startMinutes < endMinutes,
     );
     if (hitsBreak) {
       throw new BadRequestException('The selected time overlaps a staff break');
     }
 
-    const hitsTimeOff = staff.timeOffs.some((t) => startsAt < t.endsAt && t.startsAt < endsAt);
+    const hitsTimeOff = (staff.timeOffs ?? []).some(
+      (timeOff) => startsAt < timeOff.endsAt && timeOff.startsAt < endsAt,
+    );
     if (hitsTimeOff) {
       throw new BadRequestException('Staff member is on leave during the selected time');
     }
 
-    const overlapping = await tx.appointment.findFirst({
+    const overlapping = await Appointment.findOne({
       where: {
         staffId,
-        id: params.excludeAppointmentId ? { not: params.excludeAppointmentId } : undefined,
+        ...(params.excludeAppointmentId ? { id: { [Op.ne]: params.excludeAppointmentId } } : {}),
         // COMPLETED/NO_SHOW visits also occupy their time slot — only
         // CANCELLED appointments release time.
-        status: { not: 'CANCELLED' },
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
+        status: { [Op.ne]: 'CANCELLED' },
+        startsAt: { [Op.lt]: endsAt },
+        endsAt: { [Op.gt]: startsAt },
       },
-      select: { id: true },
+      attributes: ['id'],
+      transaction: tx,
     });
     if (overlapping) {
       throw new BadRequestException('The selected time has just been booked. Please choose another slot.');
@@ -321,8 +371,8 @@ export class AvailabilityService {
 
   reservingStatuses(pendingReservesTime: boolean): AppointmentStatus[] {
     return pendingReservesTime
-      ? ['PENDING', 'CONFIRMED']
-      : ['CONFIRMED'];
+      ? [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]
+      : [AppointmentStatus.CONFIRMED];
   }
 
   private minutesOfLocal(instant: Date, tz: string): number {
@@ -342,7 +392,7 @@ export class AvailabilityService {
     tz: string,
   ): { startsAt: Date; endsAt: Date }[] {
     const weekday = weekdayFromDateStr(dateStr);
-    const hours = staff.workingHours.find((h) => h.dayOfWeek === weekday);
+    const hours = staff.workingHours.find((item) => item.dayOfWeek === weekday);
     if (!hours || business.isClosed) return [];
 
     const openMinutes = Math.max(business.openMinutes, hours.startMinutes);
@@ -350,14 +400,16 @@ export class AvailabilityService {
     if (closeMinutes - openMinutes < durationMinutes) return [];
 
     const breaks = staff.breaks
-      .filter((b) => b.dayOfWeek === weekday)
-      .map((b) => ({
-        startsAt: zonedDateTimeToUtc(dateStr, b.startMinutes, tz),
-        endsAt: zonedDateTimeToUtc(dateStr, b.endMinutes, tz),
+      .filter((item) => item.dayOfWeek === weekday)
+      .map((item) => ({
+        startsAt: zonedDateTimeToUtc(dateStr, item.startMinutes, tz),
+        endsAt: zonedDateTimeToUtc(dateStr, item.endMinutes, tz),
       }));
     const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
     const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
-    const timeOffs = staff.timeOffs.filter((t) => t.startsAt < dayEnd && t.endsAt > dayStart);
+    const timeOffs = staff.timeOffs.filter(
+      (timeOff) => timeOff.startsAt < dayEnd && timeOff.endsAt > dayStart,
+    );
 
     const busy = [...appointments, ...breaks, ...timeOffs].sort(
       (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
@@ -365,12 +417,16 @@ export class AvailabilityService {
 
     const openUtc = zonedDateTimeToUtc(dateStr, openMinutes, tz);
     const closeUtc = zonedDateTimeToUtc(dateStr, closeMinutes, tz);
-    let cursor = ceilToInterval(openUtc.getTime() < earliest.getTime() ? earliest : openUtc, intervalMinutes, tz);
+    let cursor = ceilToInterval(
+      openUtc.getTime() < earliest.getTime() ? earliest : openUtc,
+      intervalMinutes,
+      tz,
+    );
 
     const slots: { startsAt: Date; endsAt: Date }[] = [];
     while (cursor.getTime() + durationMinutes * 60_000 <= closeUtc.getTime()) {
       const candidateEnd = new Date(cursor.getTime() + durationMinutes * 60_000);
-      const conflict = busy.find((b) => cursor < b.endsAt && b.startsAt < candidateEnd);
+      const conflict = busy.find((block) => cursor < block.endsAt && block.startsAt < candidateEnd);
       if (conflict) {
         // Jump past the conflicting block, aligned to the slot grid.
         cursor = ceilToInterval(conflict.endsAt, intervalMinutes, tz);

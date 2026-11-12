@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import type { StringValue } from 'ms';
-import { PrismaService } from '../prisma/prisma.service';
+import { Staff, User } from '../database/models';
 import { MailService } from '../notifications/mail.service';
 import { AuthUser } from './decorators/current-user.decorator';
 import { ChangePasswordDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
@@ -20,21 +20,22 @@ export interface LoginResult {
   user: AuthUser;
 }
 
+const staffInclude = { model: Staff, as: 'staffMember', attributes: ['id'] };
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly mail: MailService,
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResult> {
-    const user = await this.prisma.user.findUnique({
+    const user = await User.findOne({
       where: { email: dto.email.toLowerCase() },
-      include: { staffMember: { select: { id: true } } },
+      include: [staffInclude],
     });
     // Uniform error for unknown email / bad password / inactive account.
     const invalid = new UnauthorizedException('Invalid email or password');
@@ -64,10 +65,7 @@ export class AuthService {
   }
 
   async me(userId: string): Promise<AuthUser> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { staffMember: { select: { id: true } } },
-    });
+    const user = await User.findByPk(userId, { include: [staffInclude] });
     if (!user || !user.active) throw new UnauthorizedException();
     return {
       id: user.id,
@@ -79,17 +77,14 @@ export class AuthService {
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await User.findByPk(userId);
     if (!user) throw new NotFoundException();
     const valid = await compare(dto.currentPassword, user.passwordHash);
     if (!valid) throw new BadRequestException('Current password is incorrect');
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash: await hash(dto.newPassword, 12),
-        passwordResetToken: null,
-        passwordResetExpires: null,
-      },
+    await user.update({
+      passwordHash: await hash(dto.newPassword, 12),
+      passwordResetToken: null,
+      passwordResetExpires: null,
     });
   }
 
@@ -100,17 +95,14 @@ export class AuthService {
    * so an administrator can deliver it manually.
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
-    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const user = await User.findOne({ where: { email: email.toLowerCase() } });
     const message = 'If the account exists, a password reset link has been sent.';
     if (!user || !user.active) return { message };
 
     const token = randomBytes(32).toString('hex');
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetToken: token,
-        passwordResetExpires: new Date(Date.now() + 60 * 60 * 1000),
-      },
+    await user.update({
+      passwordResetToken: token,
+      passwordResetExpires: new Date(Date.now() + 60 * 60 * 1000),
     });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
@@ -134,9 +126,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { passwordResetToken: dto.token },
-    });
+    const user = await User.findOne({ where: { passwordResetToken: dto.token } });
     if (
       !user ||
       !user.passwordResetExpires ||
@@ -144,13 +134,10 @@ export class AuthService {
     ) {
       throw new BadRequestException('Reset link is invalid or has expired');
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: await hash(dto.newPassword, 12),
-        passwordResetToken: null,
-        passwordResetExpires: null,
-      },
+    await user.update({
+      passwordHash: await hash(dto.newPassword, 12),
+      passwordResetToken: null,
+      passwordResetExpires: null,
     });
   }
 }

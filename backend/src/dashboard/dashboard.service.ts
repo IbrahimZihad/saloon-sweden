@@ -1,15 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import Decimal from 'decimal.js';
+import { Op, col, fn } from 'sequelize';
+import {
+  Appointment,
+  AppointmentService,
+  Customer,
+  Staff,
+} from '../database/models';
 import { SettingsService } from '../settings/settings.service';
 import { addDaysToDateStr, localDateStr, todayLocalStr, zonedDateTimeToUtc } from '../common/utils/time.util';
 
+const appointmentIncludes = [
+  { model: Customer, as: 'customer', attributes: ['fullName', 'phone'] },
+  { model: Staff, as: 'staff', attributes: ['id', 'name'] },
+  { model: AppointmentService, as: 'services', attributes: ['serviceNameSv'] },
+];
+
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly settings: SettingsService,
-  ) {}
+  constructor(private readonly settings: SettingsService) {}
 
   async overview() {
     const settings = await this.settings.getSettings();
@@ -19,38 +28,31 @@ export class DashboardService {
     const todayStart = zonedDateTimeToUtc(today, 0, tz);
     const tomorrowStart = zonedDateTimeToUtc(addDaysToDateStr(today, 1), 0, tz);
 
-    const [statusCounts, todayAppointments, upcoming, revenueAgg, upcomingCount] =
-      await this.prisma.$transaction([
-        this.prisma.appointment.groupBy({
-          by: ['status'],
-          _count: { _all: true },
-          orderBy: { status: 'asc' },
+    const [statusCounts, todayAppointments, upcoming, revenueRow, upcomingCount] =
+      await Promise.all([
+        Appointment.findAll({
+          attributes: ['status', [fn('COUNT', col('id')), 'count']],
+          group: ['status'],
+          raw: true,
+        }) as unknown as Promise<Array<{ status: string; count: string | number }>>,
+        Appointment.findAll({
+          where: { startsAt: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart } },
+          include: appointmentIncludes,
+          order: [['startsAt', 'ASC']],
         }),
-        this.prisma.appointment.findMany({
-          where: { startsAt: { gte: todayStart, lt: tomorrowStart } },
-          include: {
-            customer: { select: { fullName: true, phone: true } },
-            staff: { select: { id: true, name: true } },
-            services: { select: { serviceNameSv: true } },
-          },
-          orderBy: { startsAt: 'asc' },
+        Appointment.findAll({
+          where: { startsAt: { [Op.gte]: now }, status: { [Op.in]: ['PENDING', 'CONFIRMED'] } },
+          include: appointmentIncludes,
+          order: [['startsAt', 'ASC']],
+          limit: 8,
         }),
-        this.prisma.appointment.findMany({
-          where: { startsAt: { gte: now }, status: { in: ['PENDING', 'CONFIRMED'] } },
-          include: {
-            customer: { select: { fullName: true, phone: true } },
-            staff: { select: { id: true, name: true } },
-            services: { select: { serviceNameSv: true } },
-          },
-          orderBy: { startsAt: 'asc' },
-          take: 8,
-        }),
-        this.prisma.appointment.aggregate({
+        Appointment.findOne({
+          attributes: [[fn('SUM', col('totalPrice')), 'total']],
           where: { status: 'COMPLETED' },
-          _sum: { totalPrice: true },
-        }),
-        this.prisma.appointment.count({
-          where: { startsAt: { gte: now }, status: { in: ['PENDING', 'CONFIRMED'] } },
+          raw: true,
+        }) as unknown as Promise<{ total: string | number | null } | null>,
+        Appointment.count({
+          where: { startsAt: { [Op.gte]: now }, status: { [Op.in]: ['PENDING', 'CONFIRMED'] } },
         }),
       ]);
 
@@ -63,7 +65,7 @@ export class DashboardService {
     };
     let total = 0;
     for (const row of statusCounts) {
-      const count = typeof row._count === 'object' ? (row._count._all ?? 0) : 0;
+      const count = Number(row.count);
       counts[row.status] = count;
       total += count;
     }
@@ -71,9 +73,9 @@ export class DashboardService {
     // Daily bookings + revenue for the last 30 local days.
     const monthStartStr = addDaysToDateStr(today, -29);
     const monthStart = zonedDateTimeToUtc(monthStartStr, 0, tz);
-    const recent = await this.prisma.appointment.findMany({
-      where: { startsAt: { gte: monthStart, lt: tomorrowStart } },
-      select: { startsAt: true, status: true, totalPrice: true },
+    const recent = await Appointment.findAll({
+      where: { startsAt: { [Op.gte]: monthStart, [Op.lt]: tomorrowStart } },
+      attributes: ['startsAt', 'status', 'totalPrice'],
     });
 
     const dailyMap = new Map<string, { bookings: number; revenue: number; cancelled: number }>();
@@ -99,6 +101,8 @@ export class DashboardService {
       if (dateStr >= weekStartStr) weeklyBookings += 1;
     }
 
+    const completedTotal = new Decimal(revenueRow?.total ?? 0).toFixed(2);
+
     return {
       today: {
         date: today,
@@ -111,7 +115,7 @@ export class DashboardService {
         upcoming: upcomingCount,
       },
       revenue: {
-        completedTotal: revenueAgg._sum.totalPrice ?? new Prisma.Decimal(0),
+        completedTotal,
         currency: settings.currency,
       },
       statistics: {

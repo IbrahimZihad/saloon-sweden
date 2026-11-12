@@ -8,7 +8,9 @@ import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import { unlink, writeFile } from 'fs/promises';
 import { extname, join, resolve } from 'path';
-import { PrismaService } from '../prisma/prisma.service';
+import { GalleryImage } from '../database/models';
+
+void extname;
 
 const ALLOWED_TYPES: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -35,10 +37,7 @@ function hasValidMagicBytes(buffer: Buffer, mime: string): boolean {
 export class UploadsService {
   readonly uploadDir: string;
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
-  ) {
+  constructor(private readonly config: ConfigService) {
     this.uploadDir = resolve(process.cwd(), this.config.get<string>('UPLOAD_DIRECTORY') ?? 'uploads');
     if (!existsSync(this.uploadDir)) {
       mkdirSync(this.uploadDir, { recursive: true });
@@ -73,23 +72,26 @@ export class UploadsService {
   }
 
   async listGallery() {
-    return this.prisma.galleryImage.findMany({
+    return GalleryImage.findAll({
       where: { active: true },
-      orderBy: { sortOrder: 'asc' },
+      order: [['sortOrder', 'ASC']],
     });
   }
 
   async addGalleryImage(imageUrl: string, altSv?: string, altEn?: string) {
-    const max = await this.prisma.galleryImage.aggregate({ _max: { sortOrder: true } });
-    return this.prisma.galleryImage.create({
-      data: { imageUrl, altSv, altEn, sortOrder: (max._max.sortOrder ?? 0) + 1 },
+    const max = await GalleryImage.max('sortOrder');
+    return GalleryImage.create({
+      imageUrl,
+      altSv: altSv ?? null,
+      altEn: altEn ?? null,
+      sortOrder: (typeof max === 'number' ? max : 0) + 1,
     });
   }
 
   async removeGalleryImage(id: string): Promise<void> {
-    const image = await this.prisma.galleryImage.findUnique({ where: { id } });
+    const image = await GalleryImage.findByPk(id);
     if (!image) throw new NotFoundException('Gallery image not found');
-    await this.prisma.galleryImage.delete({ where: { id } });
+    await image.destroy();
     const filename = image.imageUrl.split('/').pop();
     if (filename) {
       await this.deleteImage(filename).catch(() => undefined);

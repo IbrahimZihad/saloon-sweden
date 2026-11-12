@@ -13,7 +13,7 @@ import {
   MinLength,
 } from 'class-validator';
 import sanitizeHtml from 'sanitize-html';
-import { PrismaService } from '../prisma/prisma.service';
+import { ContactMessage, Testimonial } from '../database/models';
 import { paginated, skipTake } from '../common/dto/pagination.dto';
 
 export class CreateContactMessageDto {
@@ -56,25 +56,21 @@ function clean(value: string): string {
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly prisma: PrismaService) {}
-
   // -- Public ---------------------------------------------------------------
 
   findTestimonials() {
-    return this.prisma.testimonial.findMany({
+    return Testimonial.findAll({
       where: { active: true },
-      orderBy: { sortOrder: 'asc' },
+      order: [['sortOrder', 'ASC']],
     });
   }
 
   async createContactMessage(dto: CreateContactMessageDto) {
-    const message = await this.prisma.contactMessage.create({
-      data: {
-        name: clean(dto.name),
-        email: dto.email.toLowerCase().trim(),
-        phone: dto.phone?.trim(),
-        message: clean(dto.message),
-      },
+    const message = await ContactMessage.create({
+      name: clean(dto.name),
+      email: dto.email.toLowerCase().trim(),
+      phone: dto.phone?.trim() ?? null,
+      message: clean(dto.message),
     });
     return { id: message.id, message: 'Tack för ditt meddelande! Vi återkommer så snart vi kan.' };
   }
@@ -82,49 +78,53 @@ export class ContentService {
   // -- Admin ----------------------------------------------------------------
 
   findAllTestimonials() {
-    return this.prisma.testimonial.findMany({ orderBy: { sortOrder: 'asc' } });
+    return Testimonial.findAll({ order: [['sortOrder', 'ASC']] });
   }
 
   createTestimonial(dto: TestimonialDto) {
-    return this.prisma.testimonial.create({
-      data: { ...dto, authorName: clean(dto.authorName), textSv: clean(dto.textSv), textEn: dto.textEn ? clean(dto.textEn) : undefined },
+    return Testimonial.create({
+      ...dto,
+      authorName: clean(dto.authorName),
+      textSv: clean(dto.textSv),
+      textEn: dto.textEn ? clean(dto.textEn) : null,
     });
   }
 
   async updateTestimonial(id: string, dto: Partial<TestimonialDto>) {
-    const existing = await this.prisma.testimonial.findUnique({ where: { id } });
+    const existing = await Testimonial.findByPk(id);
     if (!existing) throw new NotFoundException('Testimonial not found');
-    return this.prisma.testimonial.update({
-      where: { id },
-      data: {
-        ...dto,
-        authorName: dto.authorName ? clean(dto.authorName) : undefined,
-        textSv: dto.textSv ? clean(dto.textSv) : undefined,
-        textEn: dto.textEn ? clean(dto.textEn) : undefined,
-      },
+    await existing.update({
+      ...dto,
+      authorName: dto.authorName ? clean(dto.authorName) : undefined,
+      textSv: dto.textSv ? clean(dto.textSv) : undefined,
+      textEn: dto.textEn ? clean(dto.textEn) : undefined,
     });
+    return existing;
   }
 
   async removeTestimonial(id: string): Promise<void> {
-    const existing = await this.prisma.testimonial.findUnique({ where: { id } });
+    const existing = await Testimonial.findByPk(id);
     if (!existing) throw new NotFoundException('Testimonial not found');
-    await this.prisma.testimonial.delete({ where: { id } });
+    await existing.destroy();
   }
 
   async findContactMessages(page = 1, limit = 20) {
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.contactMessage.count(),
-      this.prisma.contactMessage.findMany({
-        orderBy: { createdAt: 'desc' },
-        ...skipTake(page, limit),
-      }),
-    ]);
-    return paginated(data, total, page, limit);
+    const { rows, count } = await ContactMessage.findAndCountAll({
+      order: [['createdAt', 'DESC']],
+      ...skipTake(page, limit),
+    });
+    return paginated(
+      rows.map((row) => row.get({ plain: true })),
+      count,
+      page,
+      limit,
+    );
   }
 
   async markContactHandled(id: string) {
-    const existing = await this.prisma.contactMessage.findUnique({ where: { id } });
+    const existing = await ContactMessage.findByPk(id);
     if (!existing) throw new NotFoundException('Message not found');
-    return this.prisma.contactMessage.update({ where: { id }, data: { handled: !existing.handled } });
+    await existing.update({ handled: !existing.handled });
+    return existing;
   }
 }

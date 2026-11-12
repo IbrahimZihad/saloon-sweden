@@ -5,9 +5,18 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, Prisma } from '@prisma/client';
 import sanitizeHtml from 'sanitize-html';
-import { PrismaService } from '../prisma/prisma.service';
+import { Op, QueryTypes, Transaction, UniqueConstraintError, col, fn } from 'sequelize';
+import { DatabaseService } from '../database/database.service';
+import { AppointmentStatus } from '../database/enums';
+import {
+  Appointment,
+  AppointmentService,
+  Customer,
+  EmailNotification,
+  Staff,
+  StaffScheduleLock,
+} from '../database/models';
 import { SettingsService } from '../settings/settings.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -26,15 +35,25 @@ import {
   UpdateStatusDto,
 } from './dto/appointment.dto';
 
-const appointmentInclude = {
-  customer: true,
-  staff: { select: { id: true, name: true, jobTitle: true, imageUrl: true } },
-  services: true,
-} satisfies Prisma.AppointmentInclude;
+const appointmentIncludes = [
+  { model: Customer, as: 'customer' },
+  { model: Staff, as: 'staff', attributes: ['id', 'name', 'jobTitle', 'imageUrl'] },
+  { model: AppointmentService, as: 'services' },
+];
 
 function cleanText(value?: string): string | undefined {
   if (value === undefined) return undefined;
   return sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }).trim();
+}
+
+function isRetryableTransactionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const original = (error as { original?: { code?: string; errno?: number } }).original;
+  return (
+    original?.code === 'ER_LOCK_DEADLOCK' ||
+    original?.errno === 1213 ||
+    error.name === 'SequelizeTimeoutError'
+  );
 }
 
 interface BookParams {
@@ -56,7 +75,7 @@ export class AppointmentsService {
   private readonly logger = new Logger(AppointmentsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly database: DatabaseService,
     private readonly settings: SettingsService,
     private readonly availability: AvailabilityService,
     private readonly notifications: NotificationsService,
@@ -76,20 +95,23 @@ export class AppointmentsService {
       phone: dto.phone.trim(),
       notes: cleanText(dto.notes),
       source: 'ONLINE',
-      status: 'CONFIRMED',
+      status: AppointmentStatus.CONFIRMED,
       privileged: false,
     });
-    void this.notifications.queueForAppointment(appointment.id, 'BOOKING_CONFIRMATION');
+    void this.notifications.queueForAppointment(
+      appointment.id,
+      'BOOKING_CONFIRMATION',
+    );
     return this.findOne(appointment.id);
   }
 
   async findByReference(reference: string, email?: string) {
-    const appointment = await this.prisma.appointment.findUnique({
+    const appointment = await Appointment.findOne({
       where: { bookingReference: reference.toUpperCase() },
-      include: appointmentInclude,
+      include: appointmentIncludes,
     });
     if (!appointment) throw new NotFoundException('Booking not found');
-    if (email && appointment.customer.email.toLowerCase() !== email.toLowerCase()) {
+    if (email && appointment.customer?.email.toLowerCase() !== email.toLowerCase()) {
       throw new NotFoundException('Booking not found');
     }
     return appointment;
@@ -110,10 +132,13 @@ export class AppointmentsService {
       notes: cleanText(dto.notes),
       internalNotes: cleanText(dto.internalNotes),
       source: dto.source ?? 'PHONE',
-      status: dto.status ?? 'CONFIRMED',
+      status: dto.status ?? AppointmentStatus.CONFIRMED,
       privileged: true,
     });
-    void this.notifications.queueForAppointment(appointment.id, 'BOOKING_CONFIRMATION');
+    void this.notifications.queueForAppointment(
+      appointment.id,
+      'BOOKING_CONFIRMATION',
+    );
     return this.findOne(appointment.id);
   }
 
@@ -123,52 +148,68 @@ export class AppointmentsService {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 200);
 
-    const where: Prisma.AppointmentWhereInput = {};
+    const where: Record<string | symbol, unknown> = {};
     if (query.search) {
       const search = query.search.trim();
-      where.OR = [
-        { bookingReference: { contains: search } },
-        { customer: { fullName: { contains: search } } },
-        { customer: { phone: { contains: search } } },
-        { customer: { email: { contains: search } } },
+      const customers = (await Customer.findAll({
+        where: {
+          [Op.or]: [
+            { fullName: { [Op.like]: `%${search}%` } },
+            { phone: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } },
+          ],
+        },
+        attributes: ['id'],
+        raw: true,
+      })) as unknown as Array<{ id: string }>;
+
+      where[Op.or] = [
+        { bookingReference: { [Op.like]: `%${search}%` } },
+        ...(customers.length ? [{ customerId: { [Op.in]: customers.map((c) => c.id) } }] : []),
       ];
     }
     if (query.staffId) where.staffId = query.staffId;
     if (query.status) where.status = query.status;
-    if (query.serviceId) where.services = { some: { serviceId: query.serviceId } };
+    if (query.serviceId) {
+      const matches = (await AppointmentService.findAll({
+        where: { serviceId: query.serviceId },
+        attributes: ['appointmentId'],
+        raw: true,
+      })) as unknown as Array<{ appointmentId: string }>;
+      where.id = { [Op.in]: matches.map((match) => match.appointmentId) };
+    }
     if (query.date) {
       where.startsAt = {
-        gte: zonedDateTimeToUtc(query.date, 0, tz),
-        lt: zonedDateTimeToUtc(addDaysToDateStr(query.date, 1), 0, tz),
+        [Op.gte]: zonedDateTimeToUtc(query.date, 0, tz),
+        [Op.lt]: zonedDateTimeToUtc(addDaysToDateStr(query.date, 1), 0, tz),
       };
     } else if (query.from || query.to) {
       where.startsAt = {
-        ...(query.from ? { gte: zonedDateTimeToUtc(query.from, 0, tz) } : {}),
-        ...(query.to ? { lt: zonedDateTimeToUtc(addDaysToDateStr(query.to, 1), 0, tz) } : {}),
+        ...(query.from ? { [Op.gte]: zonedDateTimeToUtc(query.from, 0, tz) } : {}),
+        ...(query.to ? { [Op.lt]: zonedDateTimeToUtc(addDaysToDateStr(query.to, 1), 0, tz) } : {}),
       };
     }
 
-    const [total, data] = await this.prisma.$transaction([
-      this.prisma.appointment.count({ where }),
-      this.prisma.appointment.findMany({
-        where,
-        include: appointmentInclude,
-        orderBy: { startsAt: 'desc' },
-        ...skipTake(page, limit),
-      }),
-    ]);
-    return paginated(data, total, page, limit);
+    const { rows, count } = await Appointment.findAndCountAll({
+      where,
+      include: appointmentIncludes,
+      order: [['startsAt', 'DESC']],
+      ...skipTake(page, limit),
+      distinct: true,
+    });
+    return paginated(rows, count, page, limit);
   }
 
   async findOne(id: string) {
-    const appointment = await this.prisma.appointment.findUnique({
-      where: { id },
-      include: {
-        ...appointmentInclude,
-        notifications: {
-          select: { id: true, type: true, status: true, sentAt: true, attempts: true, lastError: true },
+    const appointment = await Appointment.findByPk(id, {
+      include: [
+        ...appointmentIncludes,
+        {
+          model: EmailNotification,
+          as: 'notifications',
+          attributes: ['id', 'type', 'status', 'sentAt', 'attempts', 'lastError'],
         },
-      },
+      ],
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     return appointment;
@@ -176,7 +217,11 @@ export class AppointmentsService {
 
   async reschedule(id: string, dto: RescheduleAppointmentDto) {
     const existing = await this.findOne(id);
-    if (existing.status === 'CANCELLED' || existing.status === 'COMPLETED' || existing.status === 'NO_SHOW') {
+    if (
+      existing.status === AppointmentStatus.CANCELLED ||
+      existing.status === AppointmentStatus.COMPLETED ||
+      existing.status === AppointmentStatus.NO_SHOW
+    ) {
       throw new BadRequestException('Only pending or confirmed appointments can be rescheduled');
     }
 
@@ -185,37 +230,35 @@ export class AppointmentsService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(startsAt.getTime() + existing.durationMinutes * 60_000);
     const staffId = dto.staffId ?? existing.staffId;
-    const serviceIds = existing.services
-      .map((s) => s.serviceId)
-      .filter((sid): sid is string => sid !== null);
+    const serviceIds = (existing.services ?? [])
+      .map((service) => service.serviceId)
+      .filter((serviceId): serviceId is string => serviceId !== null);
 
     const dateStr = localDateStr(startsAt, tz);
-    await this.prisma.$transaction(
-      async (tx) => {
-        await this.lockStaffDay(tx, staffId, dateStr);
-        if (staffId !== existing.staffId) {
-          await this.lockStaffDay(tx, existing.staffId, localDateStr(existing.startsAt, tz));
-        }
-        await this.availability.assertSlotAvailable(tx, {
-          staffId,
-          serviceIds,
-          startsAt,
-          endsAt,
-          durationMinutes: existing.durationMinutes,
-          excludeAppointmentId: id,
-          privileged: true,
-        });
-        await tx.appointment.update({
-          where: { id },
-          data: { staffId, startsAt, endsAt },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 15000 },
-    );
+    await this.database.transaction(async (transaction) => {
+      await this.lockStaffDay(transaction, staffId, dateStr);
+      if (staffId !== existing.staffId) {
+        await this.lockStaffDay(
+          transaction,
+          existing.staffId,
+          localDateStr(existing.startsAt, tz),
+        );
+      }
+      await this.availability.assertSlotAvailable(transaction, {
+        staffId,
+        serviceIds,
+        startsAt,
+        endsAt,
+        durationMinutes: existing.durationMinutes,
+        excludeAppointmentId: id,
+        privileged: true,
+      });
+      await existing.update({ staffId, startsAt, endsAt }, { transaction });
+    });
 
     // Reset any previous reschedule notification so the customer gets the new time.
-    await this.prisma.emailNotification.deleteMany({
-      where: { appointmentId: id, type: 'RESCHEDULE', status: { not: 'PENDING' } },
+    await EmailNotification.destroy({
+      where: { appointmentId: id, type: 'RESCHEDULE', status: { [Op.ne]: 'PENDING' } },
     });
     void this.notifications.queueForAppointment(id, 'RESCHEDULE');
     return this.findOne(id);
@@ -227,35 +270,39 @@ export class AppointmentsService {
     const current = appointment.status;
 
     const allowed: Record<AppointmentStatus, AppointmentStatus[]> = {
-      PENDING: ['CONFIRMED', 'CANCELLED'],
-      CONFIRMED: ['COMPLETED', 'CANCELLED', 'NO_SHOW'],
-      COMPLETED: [],
-      CANCELLED: [],
-      NO_SHOW: [],
+      [AppointmentStatus.PENDING]: [AppointmentStatus.CONFIRMED, AppointmentStatus.CANCELLED],
+      [AppointmentStatus.CONFIRMED]: [
+        AppointmentStatus.COMPLETED,
+        AppointmentStatus.CANCELLED,
+        AppointmentStatus.NO_SHOW,
+      ],
+      [AppointmentStatus.COMPLETED]: [],
+      [AppointmentStatus.CANCELLED]: [],
+      [AppointmentStatus.NO_SHOW]: [],
     };
     if (current === next) return appointment;
     if (!allowed[current].includes(next)) {
       throw new BadRequestException(`Cannot change status from ${current} to ${next}`);
     }
 
-    const data: Prisma.AppointmentUpdateInput = { status: next };
-    if (next === 'CANCELLED') {
-      data.cancelledAt = new Date();
-      data.cancelReason = cleanText(dto.reason);
-    }
-    await this.prisma.appointment.update({ where: { id }, data });
+    await appointment.update({
+      status: next,
+      ...(next === AppointmentStatus.CANCELLED
+        ? { cancelledAt: new Date(), cancelReason: cleanText(dto.reason) ?? null }
+        : {}),
+    });
 
-    if (next === 'CONFIRMED') {
+    if (next === AppointmentStatus.CONFIRMED) {
       void this.notifications.queueForAppointment(id, 'APPOINTMENT_CONFIRMATION');
     }
-    if (next === 'CANCELLED') {
+    if (next === AppointmentStatus.CANCELLED) {
       void this.notifications.queueForAppointment(id, 'CANCELLATION');
     }
     return this.findOne(id);
   }
 
   async cancel(id: string, reason?: string) {
-    return this.updateStatus(id, { status: 'CANCELLED', reason });
+    return this.updateStatus(id, { status: AppointmentStatus.CANCELLED, reason });
   }
 
   // -------------------------------------------------------------------------
@@ -266,7 +313,7 @@ export class AppointmentsService {
     const settings = await this.settings.getSettings();
     const tz = settings.timezone;
     const resolved = await this.availability.resolveServices(params.serviceIds);
-    const serviceIds = resolved.services.map((s) => s.id);
+    const serviceIds = resolved.services.map((service) => service.id);
 
     let candidates = await this.availability.qualifiedStaff(serviceIds, params.staffId);
     if (candidates.length === 0) {
@@ -274,26 +321,28 @@ export class AppointmentsService {
     }
     const dateStr = localDateStr(params.startsAt, tz);
     if (params.staffId && params.staffId !== 'any') {
-      candidates = candidates.filter((c) => c.id === params.staffId);
+      candidates = candidates.filter((candidate) => candidate.id === params.staffId);
     } else {
       // Prefer the least-loaded qualified stylist for the requested day.
       const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
       const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
-      const loads = await this.prisma.appointment.groupBy({
-        by: ['staffId'],
+      const loads = (await Appointment.findAll({
+        attributes: ['staffId', [fn('COUNT', col('id')), 'count']],
         where: {
-          staffId: { in: candidates.map((c) => c.id) },
-          status: { not: 'CANCELLED' },
-          startsAt: { gte: dayStart, lt: dayEnd },
+          staffId: { [Op.in]: candidates.map((candidate) => candidate.id) },
+          status: { [Op.ne]: AppointmentStatus.CANCELLED },
+          startsAt: { [Op.gte]: dayStart, [Op.lt]: dayEnd },
         },
-        _count: { _all: true },
-        orderBy: { staffId: 'asc' },
-      });
+        group: ['staffId'],
+        raw: true,
+      })) as unknown as Array<{ staffId: string; count: string | number }>;
       const loadMap = new Map(
-        loads.map((l) => [l.staffId, typeof l._count === 'object' ? (l._count._all ?? 0) : 0]),
+        loads.map((load) => [load.staffId, Number(load.count)]),
       );
       candidates = [...candidates].sort(
-        (a, b) => (loadMap.get(a.id) ?? 0) - (loadMap.get(b.id) ?? 0) || a.name.localeCompare(b.name, 'sv'),
+        (a, b) =>
+          (loadMap.get(a.id) ?? 0) - (loadMap.get(b.id) ?? 0) ||
+          a.name.localeCompare(b.name, 'sv'),
       );
     }
 
@@ -302,82 +351,72 @@ export class AppointmentsService {
 
     for (const candidate of candidates) {
       try {
-        const appointment = await this.prisma.$transaction(
-          async (tx) => {
-            // Serialize all bookings for this staff member + day. The row lock
-            // makes the overlap revalidation below race-free under concurrency.
-            await this.lockStaffDay(tx, candidate.id, dateStr);
+        const appointment = await this.database.transaction(async (transaction) => {
+          // Serialize all bookings for this staff member + day. The row lock
+          // makes the overlap revalidation below race-free under concurrency.
+          await this.lockStaffDay(transaction, candidate.id, dateStr);
 
-            await this.availability.assertSlotAvailable(tx, {
-              staffId: candidate.id,
-              serviceIds,
-              startsAt: params.startsAt,
-              endsAt,
-              durationMinutes: resolved.durationMinutes,
-              privileged: params.privileged,
-            });
+          await this.availability.assertSlotAvailable(transaction, {
+            staffId: candidate.id,
+            serviceIds,
+            startsAt: params.startsAt,
+            endsAt,
+            durationMinutes: resolved.durationMinutes,
+            privileged: params.privileged,
+          });
 
-            const customer = await tx.customer.upsert({
-              where: { email: params.email },
-              update: { fullName: params.fullName, phone: params.phone },
-              create: {
-                fullName: params.fullName,
-                email: params.email,
-                phone: params.phone,
-              },
-            });
+          const customer = await this.upsertCustomer(transaction, params);
 
-            let created = null;
-            for (let attempt = 0; attempt < 5 && !created; attempt++) {
-              try {
-                created = await tx.appointment.create({
-                  data: {
-                    bookingReference: generateBookingReference(),
-                    customerId: customer.id,
-                    staffId: candidate.id,
-                    startsAt: params.startsAt,
-                    endsAt,
-                    durationMinutes: resolved.durationMinutes,
-                    totalPrice: resolved.totalPrice,
-                    status: params.status,
-                    source: params.source,
-                    customerNotes: params.notes,
-                    internalNotes: params.internalNotes,
-                    services: {
-                      create: resolved.services.map((service) => ({
-                        serviceId: service.id,
-                        serviceNameSv: service.nameSv,
-                        serviceNameEn: service.nameEn,
-                        durationMinutes: service.durationMinutes,
-                        price: service.price,
-                      })),
-                    },
-                  },
-                });
-              } catch (error) {
-                if (
-                  error instanceof Prisma.PrismaClientKnownRequestError &&
-                  error.code === 'P2002'
-                ) {
-                  continue; // booking reference collision — regenerate
-                }
-                throw error;
+          let created: Appointment | null = null;
+          for (let attempt = 0; attempt < 5 && !created; attempt++) {
+            try {
+              created = await Appointment.create(
+                {
+                  bookingReference: generateBookingReference(),
+                  customerId: customer.id,
+                  staffId: candidate.id,
+                  startsAt: params.startsAt,
+                  endsAt,
+                  durationMinutes: resolved.durationMinutes,
+                  totalPrice: resolved.totalPrice.toFixed(2),
+                  status: params.status,
+                  source: params.source,
+                  customerNotes: params.notes ?? null,
+                  internalNotes: params.internalNotes ?? null,
+                },
+                { transaction },
+              );
+            } catch (error) {
+              if (error instanceof UniqueConstraintError) {
+                continue; // booking reference collision — regenerate
               }
+              throw error;
             }
-            if (!created) {
-              throw new ConflictException('Could not generate a unique booking reference, please retry');
-            }
-            return created;
-          },
-          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 15000 },
-        );
+          }
+          if (!created) {
+            throw new ConflictException('Could not generate a unique booking reference, please retry');
+          }
+
+          await AppointmentService.bulkCreate(
+            resolved.services.map((service) => ({
+              appointmentId: created!.id,
+              serviceId: service.id,
+              serviceNameSv: service.nameSv,
+              serviceNameEn: service.nameEn,
+              durationMinutes: service.durationMinutes,
+              price: service.price,
+            })),
+            { transaction },
+          );
+
+          return created;
+        });
         return appointment;
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          (error.code === 'P2034' || error.code === 'P2002')
-        ) {
-          lastError = new ConflictException('The selected time was just booked. Please choose another slot.');
+        if (error instanceof UniqueConstraintError || isRetryableTransactionError(error)) {
+          lastError = new ConflictException(
+            'The selected time was just booked. Please choose another slot.',
+          );
           continue;
         }
         if (error instanceof BadRequestException) {
@@ -395,20 +434,42 @@ export class AppointmentsService {
   }
 
   /**
-   * Acquires a row-level lock for (staff, local date). The upsert creates the
-   * lock row if missing; the subsequent SELECT ... FOR UPDATE blocks
-   * concurrent transactions until this one commits.
+   * Acquires a row-level lock for (staff, local date). The find-or-create
+   * creates the lock row if missing; the subsequent SELECT ... FOR UPDATE
+   * blocks concurrent transactions until this one commits.
    */
   private async lockStaffDay(
-    tx: Prisma.TransactionClient,
+    transaction: Transaction,
     staffId: string,
     dateStr: string,
   ): Promise<void> {
-    await tx.staffScheduleLock.upsert({
-      where: { staffId_lockDate: { staffId, lockDate: dateStr } },
-      update: {},
-      create: { staffId, lockDate: dateStr },
+    await StaffScheduleLock.findOrCreate({
+      where: { staffId, lockDate: dateStr },
+      defaults: { staffId, lockDate: dateStr },
+      transaction,
     });
-    await tx.$queryRaw`SELECT id FROM StaffScheduleLock WHERE staffId = ${staffId} AND lockDate = ${dateStr} FOR UPDATE`;
+    await this.database.query(
+      'SELECT id FROM StaffScheduleLock WHERE staffId = ? AND lockDate = ? FOR UPDATE',
+      { replacements: [staffId, dateStr], transaction, type: QueryTypes.SELECT },
+    );
+  }
+
+  private async upsertCustomer(transaction: Transaction, params: BookParams): Promise<Customer> {
+    const [customer, created] = await Customer.findOrCreate({
+      where: { email: params.email },
+      defaults: {
+        fullName: params.fullName,
+        email: params.email,
+        phone: params.phone,
+      },
+      transaction,
+    });
+    if (!created) {
+      await customer.update(
+        { fullName: params.fullName, phone: params.phone },
+        { transaction },
+      );
+    }
+    return customer;
   }
 }

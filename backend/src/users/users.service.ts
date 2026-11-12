@@ -4,7 +4,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import {
   IsBoolean,
@@ -15,7 +14,9 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { PrismaService } from '../prisma/prisma.service';
+import { Op } from 'sequelize';
+import { Role } from '../database/enums';
+import { Staff, User } from '../database/models';
 
 export class CreateUserDto {
   @ApiProperty() @IsString() @MaxLength(120)
@@ -52,63 +53,71 @@ export class UpdateUserDto {
   password?: string;
 }
 
-const userSelect = {
-  id: true,
-  name: true,
-  email: true,
-  role: true,
-  active: true,
-  createdAt: true,
-  staffMember: { select: { id: true, name: true } },
-} as const;
+const userAttributes = ['id', 'name', 'email', 'role', 'active', 'createdAt'];
+const staffInclude = {
+  model: Staff,
+  as: 'staffMember',
+  attributes: ['id', 'name'],
+  required: false,
+};
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
-
   findAll() {
-    return this.prisma.user.findMany({ select: userSelect, orderBy: { createdAt: 'asc' } });
+    return User.findAll({
+      attributes: userAttributes,
+      include: [staffInclude],
+      order: [['createdAt', 'ASC']],
+    });
   }
 
   async create(dto: CreateUserDto) {
     if (dto.staffId) {
-      const staff = await this.prisma.staff.findUnique({ where: { id: dto.staffId } });
+      const staff = await Staff.findByPk(dto.staffId);
       if (!staff) throw new BadRequestException('Staff profile not found');
     }
-    return this.prisma.user.create({
-      data: {
-        name: dto.name,
-        email: dto.email.toLowerCase(),
-        passwordHash: await hash(dto.password, 12),
-        role: dto.role,
-        ...(dto.staffId ? { staffMember: { connect: { id: dto.staffId } } } : {}),
-      },
-      select: userSelect,
+    const user = await User.create({
+      name: dto.name,
+      email: dto.email.toLowerCase(),
+      passwordHash: await hash(dto.password, 12),
+      role: dto.role,
     });
+    if (dto.staffId) {
+      await Staff.update({ userId: user.id }, { where: { id: dto.staffId } });
+    }
+    return this.findByIdForOutput(user.id);
   }
 
   async update(id: string, dto: UpdateUserDto, actingUserId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    const user = await User.findByPk(id);
     if (!user) throw new NotFoundException('User not found');
     if (id === actingUserId && (dto.active === false || (dto.role && dto.role !== user.role))) {
       throw new BadRequestException('You cannot deactivate or change your own role');
     }
     if (user.role === 'ADMIN' && dto.active === false) {
-      const activeAdmins = await this.prisma.user.count({ where: { role: 'ADMIN', active: true } });
-      if (activeAdmins <= 1) {
+      const activeAdmins = await User.count({
+        where: { role: 'ADMIN', active: true, id: { [Op.ne]: id } },
+      });
+      if (activeAdmins < 1) {
         throw new BadRequestException('At least one active admin must remain');
       }
     }
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        email: dto.email?.toLowerCase(),
-        role: dto.role,
-        active: dto.active,
-        ...(dto.password ? { passwordHash: await hash(dto.password, 12) } : {}),
-      },
-      select: userSelect,
+    await user.update({
+      name: dto.name,
+      email: dto.email?.toLowerCase(),
+      role: dto.role,
+      active: dto.active,
+      ...(dto.password ? { passwordHash: await hash(dto.password, 12) } : {}),
     });
+    return this.findByIdForOutput(id);
+  }
+
+  private async findByIdForOutput(id: string) {
+    const user = await User.findByPk(id, {
+      attributes: userAttributes,
+      include: [staffInclude],
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }

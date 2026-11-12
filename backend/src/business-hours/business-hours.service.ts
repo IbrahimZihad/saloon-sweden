@@ -2,7 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsBoolean, IsInt, Max, Min, ValidateNested } from 'class-validator';
-import { PrismaService } from '../prisma/prisma.service';
+import { DatabaseService } from '../database/database.service';
+import { BusinessHours } from '../database/models';
 
 export class BusinessHourItemDto {
   @ApiProperty({ description: '0 = Monday ... 6 = Sunday' })
@@ -29,10 +30,10 @@ export class SetBusinessHoursDto {
 
 @Injectable()
 export class BusinessHoursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly database: DatabaseService) {}
 
   findAll() {
-    return this.prisma.businessHours.findMany({ orderBy: { dayOfWeek: 'asc' } });
+    return BusinessHours.findAll({ order: [['dayOfWeek', 'ASC']] });
   }
 
   async replace(dto: SetBusinessHoursDto) {
@@ -45,19 +46,31 @@ export class BusinessHoursService {
         throw new BadRequestException('Opening time must be before closing time');
       }
     }
-    await this.prisma.$transaction(
-      dto.hours.map((item) =>
-        this.prisma.businessHours.upsert({
+
+    await this.database.transaction(async (transaction) => {
+      for (const item of dto.hours) {
+        const [row, created] = await BusinessHours.findOrCreate({
           where: { dayOfWeek: item.dayOfWeek },
-          update: {
+          defaults: {
+            dayOfWeek: item.dayOfWeek,
             openMinutes: item.openMinutes,
             closeMinutes: item.closeMinutes,
             isClosed: item.isClosed,
           },
-          create: item,
-        }),
-      ),
-    );
+          transaction,
+        });
+        if (!created) {
+          await row.update(
+            {
+              openMinutes: item.openMinutes,
+              closeMinutes: item.closeMinutes,
+              isClosed: item.isClosed,
+            },
+            { transaction },
+          );
+        }
+      }
+    });
     return this.findAll();
   }
 }

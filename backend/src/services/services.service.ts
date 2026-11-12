@@ -1,38 +1,78 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import Decimal from 'decimal.js';
+import {
+  AppointmentService,
+  Service,
+  ServiceCategory,
+  Staff,
+  StaffService,
+} from '../database/models';
 import { CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
+
+const categoryInclude = { model: ServiceCategory, as: 'category', required: true };
+
+function sortByCategoryAndOrder<
+  T extends { sortOrder: number; category?: { sortOrder: number } | null },
+>(rows: T[]): T[] {
+  return rows.sort(
+    (a, b) =>
+      (a.category?.sortOrder ?? 0) - (b.category?.sortOrder ?? 0) || a.sortOrder - b.sortOrder,
+  );
+}
 
 @Injectable()
 export class ServicesService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  findPublic(categorySlug?: string) {
-    return this.prisma.service.findMany({
-      where: {
-        active: true,
-        category: {
-          active: true,
-          ...(categorySlug ? { slug: categorySlug } : {}),
+  async findPublic(categorySlug?: string) {
+    const services = await Service.findAll({
+      where: { active: true },
+      include: [
+        {
+          ...categoryInclude,
+          where: { active: true, ...(categorySlug ? { slug: categorySlug } : {}) },
         },
-      },
-      orderBy: [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
-      include: { category: true },
+      ],
     });
+    return sortByCategoryAndOrder(
+      services.map((service) => service.get({ plain: true })) as Array<{
+        sortOrder: number;
+        category: { sortOrder: number };
+      }>,
+    );
   }
 
-  findAll(includeInactive = true) {
-    return this.prisma.service.findMany({
-      where: includeInactive ? {} : { active: true },
-      orderBy: [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
-      include: { category: true, _count: { select: { staff: true } } },
+  async findAll(includeInactive = true) {
+    const services = await Service.findAll({
+      where: includeInactive ? undefined : { active: true },
+      include: [
+        { model: ServiceCategory, as: 'category', required: true },
+        { model: StaffService, as: 'staff', attributes: ['staffId'], required: false },
+      ],
     });
+
+    return sortByCategoryAndOrder(
+      services.map((service) => {
+        const plain = service.get({ plain: true }) as Record<string, unknown> & {
+          staff?: unknown[];
+          category: { sortOrder: number };
+          sortOrder: number;
+        };
+        const staffCount = plain.staff?.length ?? 0;
+        delete plain.staff;
+        return { ...plain, _count: { staff: staffCount } };
+      }),
+    );
   }
 
   async findOne(id: string) {
-    const service = await this.prisma.service.findUnique({
-      where: { id },
-      include: { category: true, staff: { include: { staff: true } } },
+    const service = await Service.findByPk(id, {
+      include: [
+        { model: ServiceCategory, as: 'category' },
+        {
+          model: StaffService,
+          as: 'staff',
+          include: [{ model: Staff, as: 'staff' }],
+        },
+      ],
     });
     if (!service) throw new NotFoundException('Service not found');
     return service;
@@ -41,41 +81,39 @@ export class ServicesService {
   async create(dto: CreateServiceDto) {
     await this.ensureCategory(dto.categoryId);
     const { price, ...rest } = dto;
-    return this.prisma.service.create({
-      data: { ...rest, price: new Prisma.Decimal(price) },
-      include: { category: true },
+    const service = await Service.create({
+      ...rest,
+      price: new Decimal(price).toFixed(2),
     });
+    return Service.findByPk(service.id, { include: [categoryInclude] });
   }
 
   async update(id: string, dto: UpdateServiceDto) {
-    await this.findOne(id);
+    const service = await Service.findByPk(id);
+    if (!service) throw new NotFoundException('Service not found');
     if (dto.categoryId) await this.ensureCategory(dto.categoryId);
     const { price, ...rest } = dto;
-    return this.prisma.service.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(price !== undefined ? { price: new Prisma.Decimal(price) } : {}),
-      },
-      include: { category: true },
+    await service.update({
+      ...rest,
+      ...(price !== undefined ? { price: new Decimal(price).toFixed(2) } : {}),
     });
+    return Service.findByPk(id, { include: [categoryInclude] });
   }
 
   async remove(id: string): Promise<void> {
-    await this.findOne(id);
-    const appointmentCount = await this.prisma.appointmentService.count({
-      where: { serviceId: id },
-    });
+    const service = await Service.findByPk(id);
+    if (!service) throw new NotFoundException('Service not found');
+    const appointmentCount = await AppointmentService.count({ where: { serviceId: id } });
     if (appointmentCount > 0) {
       throw new BadRequestException(
         'Service has appointment history and cannot be deleted. Deactivate it instead.',
       );
     }
-    await this.prisma.service.delete({ where: { id } });
+    await service.destroy();
   }
 
   private async ensureCategory(categoryId: string): Promise<void> {
-    const category = await this.prisma.serviceCategory.findUnique({ where: { id: categoryId } });
+    const category = await ServiceCategory.findByPk(categoryId);
     if (!category) throw new BadRequestException('Category does not exist');
   }
 }
