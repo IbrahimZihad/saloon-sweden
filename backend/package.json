@@ -36,7 +36,6 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
     "reflect-metadata": "^0.2.2",
-    "saloon-sweden": "file:..",
     "sanitize-html": "^2.17.0",
     "sequelize": "^6.37.8",
     "sequelize-typescript": "^2.1.6",
