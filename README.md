@@ -455,9 +455,9 @@ server can be rebuilt with `db:sync` + `db:seed`, then restored data loaded on t
 
 ## 14. Verification status
 
-This workspace was verified end-to-end:
+This workspace was previously verified end-to-end:
 
-- **Backend:** 62 Jest tests across 4 suites pass against the isolated
+- **Backend:** Jest tests run against the isolated
   `salon_booking_test` database (time/DST utils, booking reference, auth/RBAC,
   availability, booking, 5-way concurrency, cancel/reschedule, status transitions,
   reference lookup, search, schema sync and seeder idempotency, admin-password
