@@ -199,20 +199,22 @@ export async function createApp(): Promise<Express> {
   }));
   app.use('/uploads', express.static(uploads.uploadDir));
 
-  const authenticate: RequestHandler = asyncHandler(async (req) => {
-    const cookieToken = (req.cookies as Record<string, string> | undefined)?.[AUTH_COOKIE];
-    const header = req.headers.authorization;
-    const token = cookieToken ?? (header?.startsWith('Bearer ') ? header.slice(7) : undefined);
-    if (!token) throw new UnauthorizedException('Authentication required');
+  const authenticate: RequestHandler = (req, _res, next) => {
+    void (async () => {
+      const cookieToken = (req.cookies as Record<string, string> | undefined)?.[AUTH_COOKIE];
+      const header = req.headers.authorization;
+      const token = cookieToken ?? (header?.startsWith('Bearer ') ? header.slice(7) : undefined);
+      if (!token) throw new UnauthorizedException('Authentication required');
 
-    try {
-      const payload = await jwt.verifyAsync<{ sub: string }>(token, { secret: env.JWT_SECRET });
-      req.user = await auth.me(payload.sub);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
-      throw new UnauthorizedException('Invalid or expired session');
-    }
-  });
+      let payload: { sub: string };
+      try {
+        payload = await jwt.verifyAsync<{ sub: string }>(token, { secret: env.JWT_SECRET });
+      } catch {
+        throw new UnauthorizedException('Invalid or expired session');
+      }
+      (req as AuthenticatedRequest).user = await auth.me(payload.sub);
+    })().then(() => next(), next);
+  };
 
   const roleGuard = (roles: RoleValue[]): RequestHandler => (req, _res, next) => {
     const user = (req as AuthenticatedRequest).user;
