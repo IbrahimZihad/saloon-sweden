@@ -419,7 +419,10 @@ directory across deploys (it is git-ignored) and include it in backups.
   `DATABASE_CA_CERT` (paste the PEM contents, using `\n` for newlines) and connect
   with `ssl-mode=VERIFY_CA`; `ssl-mode=REQUIRED` alone encrypts without verifying.
 - **Frontend (Vercel):** keep `NEXT_PUBLIC_API_URL=/api` and point
-  `API_INTERNAL_URL` at the public Render backend URL. The existing Next.js
+  `API_INTERNAL_URL` at the public Render backend URL. Set
+  `NEXT_PUBLIC_SITE_URL` to the canonical production website URL (for example,
+  `https://your-domain.se`) so Open Graph image URLs use the correct origin;
+  Vercel's `VERCEL_URL` is used as a fallback for previews. The existing Next.js
   rewrites proxy `/api/*` and `/uploads/*`, so no separate CORS setup is needed in
   the browser.
 - **Scheduled work:** reminder and retry crons run in-process. Render free

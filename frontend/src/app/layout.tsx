@@ -5,7 +5,12 @@ import { CookieConsent } from '@/components/layout/CookieConsent';
 import type { Language } from '@/lib/types';
 import './globals.css';
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Salong Sweden — Frisör & onlinebokning',
     template: '%s — Salong Sweden',
@@ -17,8 +22,22 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'sv_SE',
     siteName: 'Salong Sweden',
-    title: 'Salong Sweden — Frisör & onlinebokning',
+    title: 'Salong Sweden | Frisör, klippning & hårfärg',
     description: 'Premium frisörsalong med skandinavisk precision. Boka din tid online.',
+    images: [
+      {
+        url: '/images/hair-wash.jpg',
+        width: 1600,
+        height: 1067,
+        alt: 'Frisörstyling i en ljus salongsmiljö hos Salong Sweden',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Salong Sweden | Frisör, klippning & hårfärg',
+    description: 'Premium frisörsalong med skandinavisk precision. Boka din tid online.',
+    images: ['/images/hair-wash.jpg'],
   },
   robots: { index: true, follow: true },
 };
