@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Staff, User } from '../../database/models';
 import { AuthUser } from '../decorators/current-user.decorator';
 
 export const AUTH_COOKIE = 'salon_token';
@@ -18,7 +18,6 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -37,9 +36,8 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired session');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      include: { staffMember: { select: { id: true } } },
+    const user = await User.findByPk(payload.sub, {
+      include: [{ model: Staff, as: 'staffMember', attributes: ['id'] }],
     });
     if (!user || !user.active) {
       throw new UnauthorizedException('Account is inactive');

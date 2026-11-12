@@ -1,10 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { Appointment, NotificationStatus, NotificationType, Prisma } from '@prisma/client';
+import Decimal from 'decimal.js';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
-import { PrismaService } from '../prisma/prisma.service';
+import { Op } from 'sequelize';
+import { NotificationStatus, NotificationType } from '../database/enums';
+import {
+  Appointment,
+  AppointmentService,
+  Customer,
+  EmailNotification,
+  Staff,
+} from '../database/models';
 import { SettingsService } from '../settings/settings.service';
 import { addDaysToDateStr, todayLocalStr, zonedDateTimeToUtc } from '../common/utils/time.util';
 import { MailService } from './mail.service';
@@ -19,18 +27,28 @@ import {
 
 const MAX_ATTEMPTS = 3;
 
-type AppointmentWithRelations = Appointment & {
+interface AppointmentWithRelations {
+  bookingReference: string;
+  startsAt: Date;
+  endsAt: Date;
+  durationMinutes: number;
+  totalPrice: string;
   customer: { fullName: string; email: string };
   staff: { name: string };
-  services: { serviceNameSv: string; durationMinutes: number; price: Prisma.Decimal }[];
-};
+  services: { serviceNameSv: string; durationMinutes: number; price: string }[];
+}
+
+const appointmentIncludes = [
+  { model: Customer, as: 'customer', attributes: ['fullName', 'email'] },
+  { model: Staff, as: 'staff', attributes: ['name'] },
+  { model: AppointmentService, as: 'services' },
+];
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly settings: SettingsService,
   ) {}
@@ -39,35 +57,38 @@ export class NotificationsService {
     appointmentId: string,
     type: NotificationType,
   ): Promise<void> {
-    const appointment = await this.prisma.appointment.findUnique({
-      where: { id: appointmentId },
-      include: {
-        customer: { select: { fullName: true, email: true } },
-        staff: { select: { name: true } },
-        services: true,
-      },
+    const appointment = await Appointment.findByPk(appointmentId, {
+      include: appointmentIncludes,
     });
     if (!appointment) return;
 
     const settings = await this.settings.getSettings();
-    const data = this.buildEmailData(appointment, settings.salonName, settings.timezone, settings.currency, settings.phone, settings.address);
+    const data = this.buildEmailData(
+      appointment.get({ plain: true }) as AppointmentWithRelations,
+      settings.salonName,
+      settings.timezone,
+      settings.currency,
+      settings.phone,
+      settings.address,
+    );
     const template = this.templateFor(type, data);
 
-    const status: NotificationStatus = this.mail.isConfigured() ? 'PENDING' : 'SKIPPED';
+    const status: NotificationStatus = this.mail.isConfigured()
+      ? NotificationStatus.PENDING
+      : NotificationStatus.SKIPPED;
     try {
-      const notification = await this.prisma.emailNotification.upsert({
-        where: { appointmentId_type: { appointmentId, type } },
-        update: {},
-        create: {
+      const [notification] = await EmailNotification.findOrCreate({
+        where: { appointmentId, type },
+        defaults: {
           appointmentId,
           type,
           status,
-          toEmail: appointment.customer.email,
+          toEmail: appointment.customer?.email ?? '',
           subject: template.subject,
           htmlBody: template.html,
         },
       });
-      if (notification.status === 'PENDING') {
+      if (notification.status === NotificationStatus.PENDING) {
         // Fire-and-forget: a mail outage must never fail the booking itself.
         void this.attemptSend(notification.id);
       }
@@ -77,34 +98,29 @@ export class NotificationsService {
   }
 
   async attemptSend(notificationId: string): Promise<void> {
-    const notification = await this.prisma.emailNotification.findUnique({
-      where: { id: notificationId },
-    });
-    if (!notification || notification.status !== 'PENDING') return;
+    const notification = await EmailNotification.findByPk(notificationId);
+    if (!notification || notification.status !== NotificationStatus.PENDING) return;
     if (!this.mail.isConfigured()) {
-      await this.prisma.emailNotification.update({
-        where: { id: notificationId },
-        data: { status: 'SKIPPED' },
-      });
+      await notification.update({ status: NotificationStatus.SKIPPED });
       return;
     }
 
     try {
       await this.mail.sendMail(notification.toEmail, notification.subject, notification.htmlBody);
-      await this.prisma.emailNotification.update({
-        where: { id: notificationId },
-        data: { status: 'SENT', sentAt: new Date(), attempts: { increment: 1 }, lastError: null },
+      await notification.update({
+        status: NotificationStatus.SENT,
+        sentAt: new Date(),
+        attempts: notification.attempts + 1,
+        lastError: null,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const attempts = notification.attempts + 1;
-      await this.prisma.emailNotification.update({
-        where: { id: notificationId },
-        data: {
-          attempts,
-          lastError: message.slice(0, 2000),
-          status: attempts >= MAX_ATTEMPTS ? 'FAILED' : 'PENDING',
-        },
+      await notification.update({
+        attempts,
+        lastError: message.slice(0, 2000),
+        status:
+          attempts >= MAX_ATTEMPTS ? NotificationStatus.FAILED : NotificationStatus.PENDING,
       });
       this.logger.warn(`Email ${notificationId} attempt ${attempts} failed: ${message}`);
     }
@@ -113,10 +129,10 @@ export class NotificationsService {
   /** Retries pending notifications that failed transiently. */
   @Cron('*/5 * * * *')
   async retryPending(): Promise<void> {
-    const pending = await this.prisma.emailNotification.findMany({
-      where: { status: 'PENDING', attempts: { lt: MAX_ATTEMPTS } },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
+    const pending = await EmailNotification.findAll({
+      where: { status: NotificationStatus.PENDING, attempts: { [Op.lt]: MAX_ATTEMPTS } },
+      order: [['createdAt', 'ASC']],
+      limit: 20,
     });
     for (const notification of pending) {
       await this.attemptSend(notification.id);
@@ -133,30 +149,44 @@ export class NotificationsService {
     const startUtc = zonedDateTimeToUtc(tomorrowStr, 0, tz);
     const endUtc = zonedDateTimeToUtc(dayAfterStr, 0, tz);
 
-    const appointments = await this.prisma.appointment.findMany({
+    const appointments = await Appointment.findAll({
       where: {
-        status: { in: ['CONFIRMED', 'PENDING'] },
-        startsAt: { gte: startUtc, lt: endUtc },
-        notifications: { none: { type: 'REMINDER' } },
+        status: { [Op.in]: ['CONFIRMED', 'PENDING'] },
+        startsAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
       },
-      select: { id: true },
+      attributes: ['id'],
     });
+    const ids = appointments.map((appointment) => appointment.id);
+    const existing = ids.length
+      ? ((await EmailNotification.findAll({
+          where: { type: NotificationType.REMINDER, appointmentId: { [Op.in]: ids } },
+          attributes: ['appointmentId'],
+          raw: true,
+        })) as unknown as Array<{ appointmentId: string | null }>)
+      : [];
+    const reminded = new Set(existing.map((notification) => notification.appointmentId));
+
     for (const appointment of appointments) {
-      await this.queueForAppointment(appointment.id, 'REMINDER');
+      if (!reminded.has(appointment.id)) {
+        await this.queueForAppointment(appointment.id, NotificationType.REMINDER);
+      }
     }
   }
 
-  private templateFor(type: NotificationType, data: AppointmentEmailData) {
+  private templateFor(
+    type: NotificationType,
+    data: AppointmentEmailData,
+  ): { subject: string; html: string } {
     switch (type) {
-      case 'BOOKING_CONFIRMATION':
+      case NotificationType.BOOKING_CONFIRMATION:
         return bookingConfirmationEmail(data);
-      case 'APPOINTMENT_CONFIRMATION':
+      case NotificationType.APPOINTMENT_CONFIRMATION:
         return appointmentConfirmedEmail(data);
-      case 'CANCELLATION':
+      case NotificationType.CANCELLATION:
         return cancellationEmail(data);
-      case 'RESCHEDULE':
+      case NotificationType.RESCHEDULE:
         return rescheduleEmail(data);
-      case 'REMINDER':
+      case NotificationType.REMINDER:
         return reminderEmail(data);
     }
   }
@@ -175,17 +205,17 @@ export class NotificationsService {
       salonName,
       customerName: appointment.customer.fullName,
       bookingReference: appointment.bookingReference,
-      services: appointment.services.map((s) => ({
-        name: s.serviceNameSv,
-        durationMinutes: s.durationMinutes,
-        price: s.price.toFixed(2),
+      services: appointment.services.map((service) => ({
+        name: service.serviceNameSv,
+        durationMinutes: service.durationMinutes,
+        price: new Decimal(service.price).toFixed(2),
       })),
       staffName: appointment.staff.name,
       dateLabel: format(start, 'EEEE d MMMM yyyy', { locale: sv }),
       timeLabel: format(start, 'HH:mm'),
       endTimeLabel: format(end, 'HH:mm'),
       durationMinutes: appointment.durationMinutes,
-      totalPrice: appointment.totalPrice.toFixed(2),
+      totalPrice: new Decimal(appointment.totalPrice).toFixed(2),
       currency,
       salonPhone: phone,
       salonAddress: address,
