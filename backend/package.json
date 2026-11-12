@@ -14,7 +14,10 @@
     "test:cov": "jest --coverage --runInBand",
     "db:sync": "tsx src/database/sync.ts",
     "db:seed": "tsx src/database/seed.ts",
-    "db:seed:demo": "cross-env SEED_DEMO=true tsx src/database/seed.ts"
+    "db:seed:demo": "cross-env SEED_DEMO=true tsx src/database/seed.ts",
+    "db:sync:prod": "node dist/database/sync.js",
+    "db:seed:prod": "node dist/database/seed.js",
+    "start:render": "npm run db:sync:prod && npm run db:seed:prod && npm run start:prod"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.8",

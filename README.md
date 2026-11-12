@@ -404,12 +404,16 @@ directory across deploys (it is git-ignored) and include it in backups.
   `mysql://avnadmin:PASSWORD@host:PORT/defaultdb?ssl-mode=REQUIRED&sslcert=./certs/ca.pem&sslaccept=strict`.
   `backend/certs/` is git-ignored — upload the certificate through your host's
   secret/file mechanism instead of committing it.
-- **Backend (Render):** build with `npm ci && npm run build`; start with
-  `npm run db:sync && npm run db:seed && npm run start:prod`. Set `NODE_ENV=production`,
-  `FRONTEND_URL=https://your-vercel-domain`, a strong `JWT_SECRET`, and SMTP
-  variables if email is enabled. Use a persistent disk (for example mounted at
-  `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`, otherwise uploaded
-  images disappear on redeploy.
+- **Backend (Render):** set **Root Directory** to `backend`, **Build Command** to
+  `npm ci --include=dev && npm run build`, and **Start Command** to
+  `npm run start:render` (runs `db:sync`, `db:seed`, then `node dist/main.js`).
+  `--include=dev` is required because `NODE_ENV=production` makes npm skip
+  `@nestjs/cli` and `tsx`, and the build needs the CLI. `start:render` uses the
+  compiled `dist/database/*.js` scripts, so it does not need `tsx` at runtime.
+  Set `NODE_ENV=production`, `FRONTEND_URL=https://your-vercel-domain`, a strong
+  `JWT_SECRET`, and SMTP variables if email is enabled. Use a persistent disk (for
+  example mounted at `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`,
+  otherwise uploaded images disappear on redeploy.
 - **Frontend (Vercel):** keep `NEXT_PUBLIC_API_URL=/api` and point
   `API_INTERNAL_URL` at the public Render backend URL. The existing Next.js
   rewrites proxy `/api/*` and `/uploads/*`, so no separate CORS setup is needed in
