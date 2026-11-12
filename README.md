@@ -159,7 +159,8 @@ Open **http://localhost:3000**. API docs: **http://localhost:3001/api/docs**.
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_SECURE` | SMTP server (optional) | empty / `587` / `false` |
 | `EMAIL_USER` / `EMAIL_PASSWORD` | SMTP credentials (optional) | empty |
 | `EMAIL_FROM` | From header | `Salon <no-reply@example.com>` |
-| `UPLOAD_DIRECTORY` | Image upload dir (relative to `backend/`) | `uploads` |
+| `UPLOAD_DIRECTORY` | Image upload dir (relative to `backend/` or absolute) | `uploads` |
+| `DATABASE_CA_CERT` | Inline PEM of the MySQL CA (optional; alternative to `ssl-ca`) | — |
 | `SEED_DEMO` | Seed fictional customers/appointments | `false` |
 | `STAFF_DEMO_PASSWORD` | Password for fictional staff logins | `StaffDemo123!` |
 
@@ -412,8 +413,11 @@ directory across deploys (it is git-ignored) and include it in backups.
   compiled `dist/database/*.js` scripts, so it does not need `tsx` at runtime.
   Set `NODE_ENV=production`, `FRONTEND_URL=https://your-vercel-domain`, a strong
   `JWT_SECRET`, and SMTP variables if email is enabled. Use a persistent disk (for
-  example mounted at `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`,
-  otherwise uploaded images disappear on redeploy.
+  example mounted at `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`
+  (absolute paths are supported), otherwise uploaded images disappear on redeploy.
+  Because `backend/certs/` is git-ignored, supply Aiven's CA to the running app via
+  `DATABASE_CA_CERT` (paste the PEM contents, using `\n` for newlines) and connect
+  with `ssl-mode=VERIFY_CA`; `ssl-mode=REQUIRED` alone encrypts without verifying.
 - **Frontend (Vercel):** keep `NEXT_PUBLIC_API_URL=/api` and point
   `API_INTERNAL_URL` at the public Render backend URL. The existing Next.js
   rewrites proxy `/api/*` and `/uploads/*`, so no separate CORS setup is needed in
