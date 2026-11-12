@@ -2,7 +2,7 @@ import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 
 interface JwtSignOptions {
   secret: string;
-  expiresIn?: SignOptions['expiresIn'];
+  expiresIn?: string;
 }
 
 interface JwtVerifyOptions {
@@ -16,8 +16,12 @@ export class JwtTokenService {
     const secret = options.secret ?? this.defaults.secret;
     const expiresIn = options.expiresIn ?? this.defaults.expiresIn ?? '1d';
     return new Promise((resolve, reject) => {
-      jwt.sign(payload, secret, { algorithm: 'HS256', expiresIn }, (error, token) => {
+      jwt.sign(payload, secret, {
+        algorithm: 'HS256',
+        expiresIn: expiresIn as SignOptions['expiresIn'],
+      }, (error, token) => {
         if (error) reject(error);
+        else if (typeof token !== 'string') reject(new Error('JWT signing returned no token'));
         else resolve(token);
       });
     });
