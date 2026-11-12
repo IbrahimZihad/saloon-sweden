@@ -2,13 +2,22 @@ import { Sequelize } from 'sequelize-typescript';
 import { models } from './models';
 import { parseDatabaseUrl } from './url.util';
 
+let instance: Sequelize | undefined;
+
 /**
- * Builds the single application-wide Sequelize instance from `DATABASE_URL`.
+ * Returns the single application-wide Sequelize instance, creating it from
+ * `DATABASE_URL` on first use.
+ *
+ * Caching the instance matters beyond performance: Sequelize model classes are
+ * static, so initializing them on two live instances would make the last one
+ * win and leave associations pointing at a pool that may later be closed.
  *
  * The Prisma-style TLS query parameters used by hosted MySQL providers
  * (`sslaccept`, `sslcert`) are translated to mysql2 TLS options.
  */
 export function createSequelize(): Sequelize {
+  if (instance) return instance;
+
   const rawUrl = process.env.DATABASE_URL;
   if (!rawUrl) {
     throw new Error('DATABASE_URL must be set');
@@ -16,7 +25,7 @@ export function createSequelize(): Sequelize {
 
   const parsed = parseDatabaseUrl(rawUrl);
 
-  return new Sequelize({
+  instance = new Sequelize({
     dialect: 'mysql',
     host: parsed.host,
     port: parsed.port,
@@ -38,4 +47,6 @@ export function createSequelize(): Sequelize {
     },
     pool: { max: 10, min: 0, acquire: 30_000, idle: 10_000 },
   });
+
+  return instance;
 }

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { BusinessHours } from '../models';
 
 // dayOfWeek: 0 = Monday ... 6 = Sunday
 const HOURS = [
@@ -11,12 +11,11 @@ const HOURS = [
   { dayOfWeek: 6, openMinutes: 0, closeMinutes: 0, isClosed: true }, //      Sun closed
 ];
 
-export async function seedBusinessHours(prisma: PrismaClient): Promise<void> {
+export async function seedBusinessHours(): Promise<void> {
   for (const hours of HOURS) {
-    await prisma.businessHours.upsert({
+    await BusinessHours.findOrCreate({
       where: { dayOfWeek: hours.dayOfWeek },
-      update: {},
-      create: hours,
+      defaults: hours,
     });
   }
   console.log('[seed] Business hours ready (Mon-Fri 09-18, Thu 09-20, Sat 10-16, Sun closed).');

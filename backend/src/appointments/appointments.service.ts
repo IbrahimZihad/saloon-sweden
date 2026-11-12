@@ -8,7 +8,7 @@ import {
 import sanitizeHtml from 'sanitize-html';
 import { Op, QueryTypes, Transaction, UniqueConstraintError, col, fn } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
-import { AppointmentStatus } from '../database/enums';
+import { AppointmentStatus, NotificationType } from '../database/enums';
 import {
   Appointment,
   AppointmentService,
@@ -26,7 +26,7 @@ import {
   localDateStr,
   zonedDateTimeToUtc,
 } from '../common/utils/time.util';
-import { paginated, skipTake } from '../common/dto/pagination.dto';
+import { paginated } from '../common/dto/pagination.dto';
 import {
   AppointmentFilterDto,
   BookAppointmentDto,
@@ -100,7 +100,7 @@ export class AppointmentsService {
     });
     void this.notifications.queueForAppointment(
       appointment.id,
-      'BOOKING_CONFIRMATION',
+      NotificationType.BOOKING_CONFIRMATION,
     );
     return this.findOne(appointment.id);
   }
@@ -137,7 +137,7 @@ export class AppointmentsService {
     });
     void this.notifications.queueForAppointment(
       appointment.id,
-      'BOOKING_CONFIRMATION',
+      NotificationType.BOOKING_CONFIRMATION,
     );
     return this.findOne(appointment.id);
   }
@@ -194,7 +194,8 @@ export class AppointmentsService {
       where,
       include: appointmentIncludes,
       order: [['startsAt', 'DESC']],
-      ...skipTake(page, limit),
+      limit,
+      offset: (page - 1) * limit,
       distinct: true,
     });
     return paginated(rows, count, page, limit);
@@ -260,7 +261,7 @@ export class AppointmentsService {
     await EmailNotification.destroy({
       where: { appointmentId: id, type: 'RESCHEDULE', status: { [Op.ne]: 'PENDING' } },
     });
-    void this.notifications.queueForAppointment(id, 'RESCHEDULE');
+    void this.notifications.queueForAppointment(id, NotificationType.RESCHEDULE);
     return this.findOne(id);
   }
 
@@ -293,10 +294,10 @@ export class AppointmentsService {
     });
 
     if (next === AppointmentStatus.CONFIRMED) {
-      void this.notifications.queueForAppointment(id, 'APPOINTMENT_CONFIRMATION');
+      void this.notifications.queueForAppointment(id, NotificationType.APPOINTMENT_CONFIRMATION);
     }
     if (next === AppointmentStatus.CANCELLED) {
-      void this.notifications.queueForAppointment(id, 'CANCELLATION');
+      void this.notifications.queueForAppointment(id, NotificationType.CANCELLATION);
     }
     return this.findOne(id);
   }

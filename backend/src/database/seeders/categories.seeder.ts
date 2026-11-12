@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { ServiceCategory } from '../models';
 
 const CATEGORIES = [
   { slug: 'haircuts', nameSv: 'Klippningar', nameEn: 'Haircuts', sortOrder: 1 },
@@ -8,12 +8,11 @@ const CATEGORIES = [
   { slug: 'other-services', nameSv: 'Övriga tjänster', nameEn: 'Other Services', sortOrder: 5 },
 ];
 
-export async function seedCategories(prisma: PrismaClient): Promise<void> {
+export async function seedCategories(): Promise<void> {
   for (const category of CATEGORIES) {
-    await prisma.serviceCategory.upsert({
+    await ServiceCategory.findOrCreate({
       where: { slug: category.slug },
-      update: {},
-      create: category,
+      defaults: category,
     });
   }
   console.log(`[seed] ${CATEGORIES.length} service categories ready.`);

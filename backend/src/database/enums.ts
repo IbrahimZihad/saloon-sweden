@@ -39,7 +39,8 @@ export enum NotificationStatus {
   SKIPPED = 'SKIPPED',
 }
 
-export const ROLE_VALUES = Object.values(Role);
+export const ROLE_VALUES = ['ADMIN', 'STAFF'] as const;
+export type RoleValue = (typeof ROLE_VALUES)[number];
 export const APPOINTMENT_STATUS_VALUES = Object.values(AppointmentStatus);
 export const APPOINTMENT_SOURCE_VALUES = Object.values(AppointmentSource);
 export const NOTIFICATION_TYPE_VALUES = Object.values(NotificationType);

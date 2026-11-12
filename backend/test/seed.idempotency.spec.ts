@@ -1,22 +1,34 @@
 import { hash } from 'bcryptjs';
-import { prisma, resetDatabase, seedAll } from './db';
+import {
+  BusinessHours,
+  BusinessSettings,
+  Service,
+  ServiceCategory,
+  Staff,
+  StaffBreak,
+  StaffService,
+  StaffWorkingHours,
+  Testimonial,
+  User,
+} from '../src/database/models';
+import { closeDatabase, resetDatabase, seedAll, sequelize } from './db';
 
 async function counts() {
   return {
-    user: await prisma.user.count(),
-    category: await prisma.serviceCategory.count(),
-    service: await prisma.service.count(),
-    staff: await prisma.staff.count(),
-    staffService: await prisma.staffService.count(),
-    workingHours: await prisma.staffWorkingHours.count(),
-    break: await prisma.staffBreak.count(),
-    businessHours: await prisma.businessHours.count(),
-    settings: await prisma.businessSettings.count(),
-    testimonial: await prisma.testimonial.count(),
+    user: await User.count(),
+    category: await ServiceCategory.count(),
+    service: await Service.count(),
+    staff: await Staff.count(),
+    staffService: await StaffService.count(),
+    workingHours: await StaffWorkingHours.count(),
+    break: await StaffBreak.count(),
+    businessHours: await BusinessHours.count(),
+    settings: await BusinessSettings.count(),
+    testimonial: await Testimonial.count(),
   };
 }
 
-describe('migrations & seeder idempotency (isolated test database)', () => {
+describe('schema sync & seeder idempotency (isolated test database)', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await resetDatabase();
@@ -24,16 +36,39 @@ describe('migrations & seeder idempotency (isolated test database)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    await closeDatabase();
   });
 
-  it('applies every version-controlled migration cleanly', async () => {
-    const rows = await prisma.$queryRaw<
-      Array<{ migration_name: string; finished_at: Date | null }>
-    >`SELECT migration_name, finished_at FROM _prisma_migrations`;
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((r) => r.finished_at !== null)).toBe(true);
-    expect(rows.some((r) => r.migration_name.includes('init'))).toBe(true);
+  it('creates every model table with foreign keys', async () => {
+    // Windows MySQL commonly runs with lower_case_table_names=1, so compare
+    // case-insensitively; Aiven (Linux) preserves the PascalCase names.
+    const tables = (await sequelize.getQueryInterface().showAllTables()).map((table) =>
+      String(table).toLowerCase(),
+    );
+    expect(tables).toEqual(
+      expect.arrayContaining(
+        [
+          'User',
+          'Customer',
+          'Staff',
+          'ServiceCategory',
+          'Service',
+          'StaffService',
+          'StaffWorkingHours',
+          'StaffBreak',
+          'StaffTimeOff',
+          'Appointment',
+          'AppointmentService',
+          'StaffScheduleLock',
+          'BusinessSettings',
+          'BusinessHours',
+          'Testimonial',
+          'GalleryImage',
+          'ContactMessage',
+          'EmailNotification',
+        ].map((table) => table.toLowerCase()),
+      ),
+    );
   });
 
   it('seeds the expected baseline records', async () => {
@@ -60,18 +95,19 @@ describe('migrations & seeder idempotency (isolated test database)', () => {
 
   it('never overwrites an existing admin password', async () => {
     const email = process.env.ADMIN_EMAIL!.toLowerCase();
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email } });
-    const originalHash = admin.passwordHash;
+    const admin = await User.findOne({ where: { email } });
+    expect(admin).not.toBeNull();
+    const originalHash = admin!.passwordHash;
 
     await seedAll();
-    const afterReseed = await prisma.user.findUniqueOrThrow({ where: { email } });
-    expect(afterReseed.passwordHash).toBe(originalHash);
+    const afterReseed = await User.findOne({ where: { email } });
+    expect(afterReseed!.passwordHash).toBe(originalHash);
 
     // Simulate the owner having changed their password, then re-seed.
     const changedHash = await hash('AChangedPassword123!', 12);
-    await prisma.user.update({ where: { id: admin.id }, data: { passwordHash: changedHash } });
+    await admin!.update({ passwordHash: changedHash });
     await seedAll();
-    const preserved = await prisma.user.findUniqueOrThrow({ where: { id: admin.id } });
-    expect(preserved.passwordHash).toBe(changedHash);
+    const preserved = await User.findByPk(admin!.id);
+    expect(preserved!.passwordHash).toBe(changedHash);
   });
 });

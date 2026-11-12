@@ -3,13 +3,15 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
+import { Op } from 'sequelize';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { DecimalSerializerInterceptor } from '../src/common/interceptors/decimal-serializer.interceptor';
 import { NotificationsService } from '../src/notifications/notifications.service';
 import { MailService } from '../src/notifications/mail.service';
-import { prisma, resetDatabase, seedAll } from './db';
+import { Appointment, Service, Staff } from '../src/database/models';
+import { closeDatabase, resetDatabase, seedAll } from './db';
 
 // sanitize-html pulls in an ESM-only htmlparser2 that Jest's CJS runtime cannot
 // require. The real sanitizer runs in the live app; here we stub the boundary
@@ -78,10 +80,12 @@ describe('App integration (isolated test database)', () => {
     adminCookie = await login(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!);
     staffCookie = await login('anna@example.com', process.env.STAFF_DEMO_PASSWORD!);
 
-    const service = await prisma.service.findUniqueOrThrow({ where: { slug: 'mens-haircut' } });
-    const anna = await prisma.staff.findUniqueOrThrow({ where: { slug: 'anna' } });
-    serviceId = service.id;
-    annaId = anna.id;
+    const service = await Service.findOne({ where: { slug: 'mens-haircut' } });
+    const anna = await Staff.findOne({ where: { slug: 'anna' } });
+    expect(service).not.toBeNull();
+    expect(anna).not.toBeNull();
+    serviceId = service!.id;
+    annaId = anna!.id;
 
     const datesRes = await request(baseUrl)
       .get('/api/public/availability/dates')
@@ -111,7 +115,7 @@ describe('App integration (isolated test database)', () => {
 
   afterAll(async () => {
     await app?.close();
-    await prisma.$disconnect();
+    await closeDatabase();
   });
 
   async function login(email: string, password: string): Promise<string> {
@@ -292,8 +296,12 @@ describe('App integration (isolated test database)', () => {
       const rejected = attempts.filter((r) => r.status === 400 || r.status === 409);
       expect(created).toHaveLength(1);
       expect(rejected).toHaveLength(4);
-      const rows = await prisma.appointment.count({
-        where: { staffId: annaId, startsAt: new Date(slots[1].startsAt), status: { not: 'CANCELLED' } },
+      const rows = await Appointment.count({
+        where: {
+          staffId: annaId,
+          startsAt: new Date(slots[1].startsAt),
+          status: { [Op.ne]: 'CANCELLED' },
+        },
       });
       expect(rows).toBe(1);
     });

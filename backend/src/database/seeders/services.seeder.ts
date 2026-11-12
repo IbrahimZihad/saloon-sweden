@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import Decimal from 'decimal.js';
+import { Service, ServiceCategory } from '../models';
 
 // Sample prices/durations are placeholders — editable in the admin dashboard.
 const SERVICES = [
@@ -104,20 +105,24 @@ const SERVICES = [
   },
 ];
 
-export async function seedServices(prisma: PrismaClient): Promise<void> {
+export async function seedServices(): Promise<void> {
   let sortOrder = 0;
   for (const service of SERVICES) {
     sortOrder += 1;
     const { category, ...data } = service;
-    await prisma.service.upsert({
+    const parent = await ServiceCategory.findOne({ where: { slug: category } });
+    if (!parent) {
+      console.warn(`[seed] Skipping service ${service.slug}: category ${category} is missing.`);
+      continue;
+    }
+    await Service.findOrCreate({
       where: { slug: service.slug },
-      update: {},
-      create: {
+      defaults: {
         ...data,
         nameSv: data.nameSv.trim(),
-        price: data.price,
+        price: new Decimal(data.price).toFixed(2),
         sortOrder,
-        category: { connect: { slug: category } },
+        categoryId: parent.id,
       },
     });
   }

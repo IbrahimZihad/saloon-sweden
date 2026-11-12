@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Op, Transaction } from 'sequelize';
+import { Op, Transaction, type Includeable } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
 import {
   Service,
   Staff,
   StaffBreak,
-  StaffService,
+  StaffService as StaffServiceModel,
   StaffTimeOff,
   StaffWorkingHours,
 } from '../database/models';
@@ -17,9 +17,9 @@ import {
   UpdateStaffDto,
 } from './dto/staff.dto';
 
-const staffIncludes = [
+const staffIncludes: Includeable[] = [
   {
-    model: StaffService,
+    model: StaffServiceModel,
     as: 'services',
     include: [{ model: Service, as: 'service', attributes: ['id', 'nameSv', 'nameEn', 'active'] }],
   },
@@ -43,7 +43,7 @@ export class StaffService {
       where: { active: true },
       order: [['name', 'ASC']],
       attributes: ['id', 'name', 'slug', 'jobTitle', 'bio', 'imageUrl'],
-      include: [{ model: StaffService, as: 'services', attributes: ['serviceId'] }],
+      include: [{ model: StaffServiceModel, as: 'services', attributes: ['serviceId'] }],
     });
   }
 
@@ -67,7 +67,7 @@ export class StaffService {
     if (serviceIds?.length) await this.ensureServicesExist(serviceIds);
     const staff = await Staff.create({ ...data });
     if (serviceIds?.length) {
-      await StaffService.bulkCreate(
+      await StaffServiceModel.bulkCreate(
         serviceIds.map((serviceId) => ({ staffId: staff.id, serviceId })),
       );
     }
@@ -81,9 +81,9 @@ export class StaffService {
     await this.database.transaction(async (transaction) => {
       if (serviceIds) {
         await this.ensureServicesExist(serviceIds, transaction);
-        await StaffService.destroy({ where: { staffId: id }, transaction });
+        await StaffServiceModel.destroy({ where: { staffId: id }, transaction });
         if (serviceIds.length) {
-          await StaffService.bulkCreate(
+          await StaffServiceModel.bulkCreate(
             serviceIds.map((serviceId) => ({ staffId: id, serviceId })),
             { transaction },
           );

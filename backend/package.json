@@ -8,20 +8,13 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:cov": "jest --coverage --runInBand",
-    "db:generate": "prisma generate",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:migrate:status": "prisma migrate status",
-    "db:seed": "prisma db seed",
-    "db:seed:demo": "cross-env SEED_DEMO=true prisma db seed",
-    "db:studio": "prisma studio"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "db:sync": "tsx src/database/sync.ts",
+    "db:seed": "tsx src/database/seed.ts",
+    "db:seed:demo": "cross-env SEED_DEMO=true tsx src/database/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.8",

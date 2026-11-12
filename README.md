@@ -34,7 +34,7 @@ prototype.
 | --------- | --------------------------------------------------------------------- |
 | Frontend  | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Lucide React · React Hook Form · Zod · Recharts |
 | Backend   | NestJS 11 · TypeScript · REST · JWT (HTTP-only cookie) · modular architecture · Swagger |
-| Database  | **MySQL 8.0+** · Prisma ORM 6 (`provider = "mysql"`) · real version-controlled migrations |
+| Database  | **MySQL 8.0+** · Sequelize ORM 6 (`sequelize-typescript`) · model-driven schema sync |
 | Email     | Nodemailer (SMTP) · database-backed queue with retries                  |
 | Testing   | Jest + Supertest (backend, isolated test DB) · Vitest + Testing Library (frontend) · Playwright (browser e2e) |
 
@@ -45,19 +45,15 @@ prototype.
 ```
 saloon-sweden/
 ├── backend/                 # NestJS REST API (port 3001, prefix /api)
-│   ├── prisma/
-│   │   ├── schema.prisma    # MySQL datasource + 18 models
-│   │   ├── migrations/      # version-controlled SQL migrations
-│   │   ├── seed.ts          # idempotent seed orchestrator
-│   │   └── seeders/         # admin, settings, hours, categories, services, staff, testimonials, demo
 │   ├── src/
 │   │   ├── main.ts          # bootstrap: helmet, CORS, cookies, validation, Swagger, static uploads
 │   │   ├── app.module.ts
+│   │   ├── database/        # Sequelize connection, 18 models, seeders, sync/seed scripts
 │   │   └── <modules>/       # auth, appointments, availability, services, categories, staff,
 │   │                        # customers, dashboard, settings, business-hours, content,
-│   │                        # notifications, uploads, users, prisma, config, common
+│   │                        # notifications, uploads, users, config, common
 │   ├── test/                # integration + seeder-idempotency specs (isolated test DB)
-│   └── .env.example
+│   └── certs/               # optional CA certificate for managed MySQL (git-ignored)
 ├── frontend/                # Next.js App Router (port 3000)
 │   ├── src/
 │   │   ├── app/             # (public) route group + admin/(dashboard) route group
@@ -126,12 +122,11 @@ npm --prefix backend install
 npm --prefix frontend install
 ```
 
-### 4.4 Apply migrations and seed
+### 4.4 Create the schema and seed
 
 ```bash
-npm --prefix backend run db:generate      # generate Prisma client
-npm --prefix backend run db:migrate:deploy # apply version-controlled migrations
-npm --prefix backend run db:seed           # idempotent seed (safe to re-run)
+npm --prefix backend run db:sync   # create any missing tables from the Sequelize models
+npm --prefix backend run db:seed   # idempotent seed (safe to re-run)
 ```
 
 ### 4.5 Run both apps (development)
@@ -155,7 +150,7 @@ Open **http://localhost:3000**. API docs: **http://localhost:3001/api/docs**.
 | --- | --- | --- |
 | `NODE_ENV` | `development` / `production` / `test` | `development` |
 | `PORT` | API listen port | `3001` |
-| `DATABASE_URL` | MySQL connection (Prisma) | `mysql://root:pass@localhost:3306/salon_booking` |
+| `DATABASE_URL` | MySQL connection string (Sequelize) | `mysql://root:pass@localhost:3306/salon_booking` |
 | `TEST_DATABASE_URL` | Isolated database for automated tests | `mysql://root:pass@localhost:3306/salon_booking_test` |
 | `JWT_SECRET` | Secret for signing JWTs | random 48-byte hex |
 | `JWT_EXPIRES_IN` | Token lifetime | `1d` |
@@ -179,22 +174,26 @@ Open **http://localhost:3000**. API docs: **http://localhost:3001/api/docs**.
 
 ## 6. Database, migrations & seeding
 
-### Migrations (real, version-controlled)
+### Schema (model-driven sync)
 
-The schema is managed with **Prisma Migrate**, not `db push`. The initial migration
-is `backend/prisma/migrations/20261107000000_init`. Each migration is committed SQL
-with a `migration_lock.toml` pinning the provider to MySQL.
+The schema lives in `backend/src/database/models/` as Sequelize model classes
+(`sequelize-typescript`). `npm --prefix backend run db:sync` calls
+`sequelize.sync()`, which creates any missing tables and foreign keys. Existing
+tables are left untouched, so it is safe on every deploy.
 
 ```bash
-npm --prefix backend run db:migrate:dev     # create/apply migrations in development
-npm --prefix backend run db:migrate:deploy  # apply pending migrations (production/CI)
-npm --prefix backend run db:migrate:status  # show applied/pending migrations
+npm --prefix backend run db:sync                    # create missing tables/indexes
+DB_SYNC_ALTER=true npm --prefix backend run db:sync # also reconcile column changes (dev/staging)
 ```
+
+Table and column names (`User`, `Customer`, `Appointment`, … camelCase columns)
+are unchanged from the previous ORM, so an existing database can be reused as-is.
 
 ### Seeding (idempotent)
 
-`npm --prefix backend run db:seed` runs `prisma/seed.ts`. Every seeder checks for
-existing records and **never overwrites** them, so it is safe to re-run at any time:
+`npm --prefix backend run db:seed` runs `src/database/seed.ts`. Every seeder
+checks for existing records and **never overwrites** them, so it is safe to re-run
+at any time:
 
 - **Admin** — created from `ADMIN_EMAIL` / `ADMIN_PASSWORD` only if absent. An
   existing admin's password is **never** overwritten by re-seeding.
@@ -217,17 +216,17 @@ Demo staff logins (password = `STAFF_DEMO_PASSWORD`): `anna@example.com`,
 
 ### Fresh-database demonstration (verified)
 
-The complete create → migrate → seed → run cycle was verified against a brand-new
+The complete create → sync → seed → run cycle was verified against a brand-new
 database. To reproduce (substitute your own credentials/port):
 
 ```bash
 # 1. Create a fresh database
 mysql -u root -p -e "CREATE DATABASE salon_booking_fresh CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-# 2. Apply migrations + seed against it (inline DATABASE_URL overrides .env)
+# 2. Create the schema + seed against it (inline DATABASE_URL overrides .env)
 cd backend
-DATABASE_URL="mysql://root:pass@localhost:3306/salon_booking_fresh" npx prisma migrate deploy
-DATABASE_URL="mysql://root:pass@localhost:3306/salon_booking_fresh" npx prisma db seed
+DATABASE_URL="mysql://root:pass@localhost:3306/salon_booking_fresh" npx tsx src/database/sync.ts
+DATABASE_URL="mysql://root:pass@localhost:3306/salon_booking_fresh" npx tsx src/database/seed.ts
 
 # 3. Run the API against the fresh database
 DATABASE_URL="mysql://root:pass@localhost:3306/salon_booking_fresh" PORT=3002 node dist/main.js
@@ -254,12 +253,13 @@ reverse proxy and TLS.
 ## 8. Testing
 
 All backend tests run against the **separate** `TEST_DATABASE_URL` database — never
-production data. The test harness creates the test database, applies migrations and
+production data. The test harness creates the test database and recreates the
+schema from the Sequelize models (`sync({ force: true })`) before each suite, then
 seeds it automatically.
 
 ```bash
 # Backend: unit + integration (auth, RBAC, availability, booking, 5-way concurrency,
-# cancel/reschedule, status transitions, reference lookup, migrations, seeder idempotency)
+# cancel/reschedule, status transitions, reference lookup, schema sync, seeder idempotency)
 npm run test:backend            # = jest --runInBand  (backend/)
 npm --prefix backend run test:cov
 
@@ -305,11 +305,11 @@ Set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SECURE`, `EMAIL_USER`, `EMAIL_PASSWORD` a
 - Availability is computed from business hours, per-staff working hours, breaks,
   time-off, service duration, existing appointments, the configured slot interval,
   minimum booking notice and maximum advance window.
-- Every booking is **revalidated server-side** inside a Prisma interactive
-  transaction (`ReadCommitted`). A per-staff/per-day `StaffScheduleLock` row is
-  upserted and locked with `SELECT ... FOR UPDATE` (MySQL row-level locking) before
-  the overlap check, so concurrent requests cannot double-book. Unique constraints
-  provide a final safety net; conflicts return HTTP `409`.
+- Every booking is **revalidated server-side** inside a Sequelize transaction
+  (`READ COMMITTED`). A per-staff/per-day `StaffScheduleLock` row is created and
+  locked with `SELECT ... FOR UPDATE` (MySQL row-level locking) before the overlap
+  check, so concurrent requests cannot double-book. Unique constraints provide a
+  final safety net; conflicts return HTTP `409`.
 - Statuses: `PENDING → CONFIRMED → COMPLETED`, plus `CANCELLED` and `NO_SHOW`.
   Cancelling frees the time slot; completed/no-show are terminal.
 - Money is stored as `DECIMAL` and serialized to strings. Appointments keep
@@ -351,7 +351,7 @@ The two apps run as ordinary Node processes behind a reverse proxy.
 ```bash
 npm ci --prefix backend && npm ci --prefix frontend
 npm run build
-npm --prefix backend run db:migrate:deploy
+npm --prefix backend run db:sync
 npm --prefix backend run db:seed        # idempotent; creates admin only if absent
 ```
 
@@ -396,6 +396,28 @@ Set `FRONTEND_URL=https://your-domain.se` and `NODE_ENV=production` so CORS and 
 Uploaded images live in `backend/uploads/` (served at `/uploads/`). Persist this
 directory across deploys (it is git-ignored) and include it in backups.
 
+### 11.5 Managed hosting (Aiven + Render + Vercel)
+
+- **Database (Aiven MySQL):** set `DATABASE_URL` to the service URI. For TLS,
+  download the provider CA to `backend/certs/ca.pem` and add `sslcert=./certs/ca.pem`
+  (relative to `backend/`) plus `sslaccept=strict` to the URL, for example:
+  `mysql://avnadmin:PASSWORD@host:PORT/defaultdb?ssl-mode=REQUIRED&sslcert=./certs/ca.pem&sslaccept=strict`.
+  `backend/certs/` is git-ignored — upload the certificate through your host's
+  secret/file mechanism instead of committing it.
+- **Backend (Render):** build with `npm ci && npm run build`; start with
+  `npm run db:sync && npm run db:seed && npm run start:prod`. Set `NODE_ENV=production`,
+  `FRONTEND_URL=https://your-vercel-domain`, a strong `JWT_SECRET`, and SMTP
+  variables if email is enabled. Use a persistent disk (for example mounted at
+  `/var/data`) and set `UPLOAD_DIRECTORY=/var/data/uploads`, otherwise uploaded
+  images disappear on redeploy.
+- **Frontend (Vercel):** keep `NEXT_PUBLIC_API_URL=/api` and point
+  `API_INTERNAL_URL` at the public Render backend URL. The existing Next.js
+  rewrites proxy `/api/*` and `/uploads/*`, so no separate CORS setup is needed in
+  the browser.
+- **Scheduled work:** reminder and retry crons run in-process. Render free
+  instances spin down when idle, which pauses them; use an always-on instance for
+  reliable email reminders.
+
 ---
 
 ## 12. Backup & restore
@@ -408,9 +430,8 @@ mysqldump -u root -p --databases salon_booking > salon_booking_$(date +%F).sql
 mysql -u root -p < salon_booking_2026-11-07.sql
 ```
 
-Also back up `backend/uploads/`. Because migrations are version-controlled, a fresh
-server can be rebuilt with `prisma migrate deploy` + `db:seed`, then restored data
-loaded on top.
+Also back up `backend/uploads/`. Because the schema is defined in code, a fresh
+server can be rebuilt with `db:sync` + `db:seed`, then restored data loaded on top.
 
 ---
 
@@ -431,7 +452,7 @@ This workspace was verified end-to-end:
 - **Backend:** 62 Jest tests across 4 suites pass against the isolated
   `salon_booking_test` database (time/DST utils, booking reference, auth/RBAC,
   availability, booking, 5-way concurrency, cancel/reschedule, status transitions,
-  reference lookup, search, migrations and seeder idempotency, admin-password
+  reference lookup, search, schema sync and seeder idempotency, admin-password
   preservation).
 - **Frontend:** 41 Vitest unit/component tests pass; 3 Playwright browser e2e tests
   pass (booking flow → confirmation reference, admin login → dashboard,
@@ -439,19 +460,21 @@ This workspace was verified end-to-end:
 - **Builds:** backend `nest build` and frontend `next build` both succeed.
 - **Live:** both apps run; a browser booking was created and confirmed persisted in
   MySQL with a DST-correct UTC instant (`10:00 Stockholm` → `09:00Z` in winter).
-- **Fresh DB:** create → migrate → seed → run verified on a brand-new database.
+- **Fresh DB:** create → sync → seed → run verified on a brand-new database.
 
 ---
 
 ## 15. Notes & troubleshooting
 
-- **Prisma deprecation warning:** `package.json#prisma` (the `seed` command) emits a
-  benign deprecation notice on Prisma 6; it still works and can be migrated to a
-  `prisma.config.ts` when upgrading to Prisma 7.
 - **Local MySQL in this workspace:** a local MySQL 8.0 instance runs on port **3307**
   with `utf8mb4` / `utf8mb4_unicode_ci` and UTC default time zone (see `.mysql.cnf`).
-  Adjust `DATABASE_URL` accordingly. The `mysqldata/` directory is git-ignored.
-- **Windows:** if `prisma generate` fails with `EPERM` renaming the query-engine DLL,
-  stop running Node/Prisma processes first, or use `migrate reset --skip-generate`.
+  Adjust `DATABASE_URL` / `TEST_DATABASE_URL` accordingly. The `mysqldata/`
+  directory is git-ignored.
+- **Table-name casing:** Windows MySQL commonly uses `lower_case_table_names=1`;
+  Aiven (Linux) preserves the PascalCase names. The test schema check therefore
+  compares table names case-insensitively.
+- **Schema changes:** `db:sync` only creates missing tables. Use
+  `DB_SYNC_ALTER=true npm run db:sync` in development/staging to add new columns
+  and indexes to existing tables; review the generated DDL before production.
 - **Demo contact details:** the seeded address/phone/email are realistic demo values.
   Replace them in **Admin → Settings** before going live.

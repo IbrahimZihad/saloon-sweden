@@ -14,7 +14,7 @@ import {
 } from 'class-validator';
 import sanitizeHtml from 'sanitize-html';
 import { ContactMessage, Testimonial } from '../database/models';
-import { paginated, skipTake } from '../common/dto/pagination.dto';
+import { paginated } from '../common/dto/pagination.dto';
 
 export class CreateContactMessageDto {
   @ApiProperty() @IsString() @MinLength(2) @MaxLength(160)
@@ -111,7 +111,8 @@ export class ContentService {
   async findContactMessages(page = 1, limit = 20) {
     const { rows, count } = await ContactMessage.findAndCountAll({
       order: [['createdAt', 'DESC']],
-      ...skipTake(page, limit),
+      limit,
+      offset: (page - 1) * limit,
     });
     return paginated(
       rows.map((row) => row.get({ plain: true })),

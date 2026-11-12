@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Testimonial } from '../models';
 
 const TESTIMONIALS = [
   {
@@ -24,14 +24,12 @@ const TESTIMONIALS = [
   },
 ];
 
-export async function seedTestimonials(prisma: PrismaClient): Promise<void> {
+export async function seedTestimonials(): Promise<void> {
   for (const testimonial of TESTIMONIALS) {
-    const existing = await prisma.testimonial.findFirst({
+    await Testimonial.findOrCreate({
       where: { authorName: testimonial.authorName },
+      defaults: testimonial,
     });
-    if (!existing) {
-      await prisma.testimonial.create({ data: testimonial });
-    }
   }
   console.log(`[seed] ${TESTIMONIALS.length} sample testimonials ready (fictional).`);
 }

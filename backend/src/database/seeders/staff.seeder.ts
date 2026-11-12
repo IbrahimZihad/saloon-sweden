@@ -1,5 +1,13 @@
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { Role } from '../enums';
+import {
+  Service,
+  Staff,
+  StaffBreak,
+  StaffService,
+  StaffWorkingHours,
+  User,
+} from '../models';
 
 // Fictional staff profiles for development/demonstration.
 const STAFF = [
@@ -79,66 +87,64 @@ const STAFF = [
   },
 ];
 
-export async function seedStaff(prisma: PrismaClient): Promise<void> {
+export async function seedStaff(): Promise<void> {
   for (const member of STAFF) {
     const { serviceSlugs, workingHours, bioSv, bioEn, ...data } = member;
 
-    const staff = await prisma.staff.upsert({
+    const [staff] = await Staff.findOrCreate({
       where: { slug: member.slug },
-      update: {},
-      create: { ...data, bio: bioSv, active: true },
+      defaults: { ...data, bio: bioSv, active: true },
     });
 
     // Optional staff login account (role STAFF) so schedule views can be tested.
-    const existingUser = await prisma.user.findUnique({ where: { email: member.email } });
+    const existingUser = await User.findOne({ where: { email: member.email } });
     if (!existingUser) {
       const passwordHash = await hash(process.env.STAFF_DEMO_PASSWORD ?? 'StaffDemo123!', 12);
-      const user = await prisma.user.create({
-        data: {
-          email: member.email,
-          name: member.name,
-          passwordHash,
-          role: 'STAFF',
-          active: true,
-        },
+      const user = await User.create({
+        email: member.email,
+        name: member.name,
+        passwordHash,
+        role: Role.STAFF,
+        active: true,
       });
-      await prisma.staff.update({ where: { id: staff.id }, data: { userId: user.id } });
+      await staff.update({ userId: user.id });
     } else if (!staff.userId) {
-      await prisma.staff.update({ where: { id: staff.id }, data: { userId: existingUser.id } });
+      await staff.update({ userId: existingUser.id });
     }
 
     for (const slug of serviceSlugs) {
-      const service = await prisma.service.findUnique({ where: { slug } });
+      const service = await Service.findOne({ where: { slug } });
       if (!service) continue;
-      await prisma.staffService.upsert({
-        where: { staffId_serviceId: { staffId: staff.id, serviceId: service.id } },
-        update: {},
-        create: { staffId: staff.id, serviceId: service.id },
+      await StaffService.findOrCreate({
+        where: { staffId: staff.id, serviceId: service.id },
+        defaults: { staffId: staff.id, serviceId: service.id },
       });
     }
 
     for (const hours of workingHours) {
-      await prisma.staffWorkingHours.upsert({
-        where: { staffId_dayOfWeek: { staffId: staff.id, dayOfWeek: hours.dayOfWeek } },
-        update: {},
-        create: { staffId: staff.id, ...hours },
+      await StaffWorkingHours.findOrCreate({
+        where: { staffId: staff.id, dayOfWeek: hours.dayOfWeek },
+        defaults: { staffId: staff.id, ...hours },
       });
     }
 
     // Lunch break 13:00-14:00 on every working day (idempotent per staff/day).
     for (const hours of workingHours) {
-      const existing = await prisma.staffBreak.findFirst({
-        where: { staffId: staff.id, dayOfWeek: hours.dayOfWeek, startMinutes: 780, endMinutes: 840 },
+      const existing = await StaffBreak.findOne({
+        where: {
+          staffId: staff.id,
+          dayOfWeek: hours.dayOfWeek,
+          startMinutes: 780,
+          endMinutes: 840,
+        },
       });
       if (!existing) {
-        await prisma.staffBreak.create({
-          data: {
-            staffId: staff.id,
-            dayOfWeek: hours.dayOfWeek,
-            startMinutes: 780,
-            endMinutes: 840,
-            label: 'Lunch',
-          },
+        await StaffBreak.create({
+          staffId: staff.id,
+          dayOfWeek: hours.dayOfWeek,
+          startMinutes: 780,
+          endMinutes: 840,
+          label: 'Lunch',
         });
       }
     }
