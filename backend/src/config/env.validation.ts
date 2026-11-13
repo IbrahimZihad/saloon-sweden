@@ -29,6 +29,11 @@ export const envSchema = z.object({
   EMAIL_FROM: z.string().default('Salon <no-reply@example.com>'),
   UPLOAD_DIRECTORY: z.string().default('uploads'),
   DATABASE_CA_CERT: z.string().optional(),
+  // GDPR retention. Values are read by the daily retention job.
+  // 0 disables the customer anonymisation step.
+  RETENTION_CUSTOMER_MONTHS: z.coerce.number().int().nonnegative().default(36),
+  RETENTION_CONTACT_MESSAGE_DAYS: z.coerce.number().int().nonnegative().default(365),
+  RETENTION_NOTIFICATION_DAYS: z.coerce.number().int().nonnegative().default(90),
   SEED_DEMO: z
     .enum(['true', 'false'])
     .default('false')

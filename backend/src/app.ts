@@ -37,6 +37,7 @@ import { StaffService } from './staff/staff.service';
 import { CreateStaffDto, CreateTimeOffDto, SetBreaksDto, SetWorkingHoursDto, UpdateStaffDto } from './staff/dto/staff.dto';
 import { UploadsService } from './uploads/uploads.service';
 import { UsersService, CreateUserDto, UpdateUserDto } from './users/users.service';
+import { RetentionService } from './retention/retention.service';
 import { RoleValue } from './database/enums';
 import { serializeDecimals } from './common/utils/serialize.util';
 import { RuntimeConfig } from './common/runtime-config';
@@ -166,6 +167,11 @@ export async function createApp(): Promise<Express> {
   const content = new ContentService();
   const uploads = new UploadsService(config);
   const users = new UsersService();
+  const retention = new RetentionService(database, customers, {
+    customerMonths: env.RETENTION_CUSTOMER_MONTHS,
+    contactMessageDays: env.RETENTION_CONTACT_MESSAGE_DAYS,
+    notificationDays: env.RETENTION_NOTIFICATION_DAYS,
+  });
 
   const app = express();
   const router = express.Router();
@@ -504,12 +510,20 @@ export async function createApp(): Promise<Express> {
   app.use(errorMiddleware());
   app.locals.database = database;
   app.locals.notifications = notifications;
-  app.locals.notificationTasks = env.NODE_ENV === 'test' ? [] : [
+  app.locals.retention = retention;
+  app.locals.backgroundTasks = env.NODE_ENV === 'test' ? [] : [
     cron.schedule('*/5 * * * *', () => {
       void notifications.retryPending().catch((error: unknown) => console.error('Notification retry failed:', error));
     }),
     cron.schedule('0 8 * * *', () => {
       void notifications.sendDailyReminders().catch((error: unknown) => console.error('Daily reminders failed:', error));
+    }, {
+      timezone: 'Europe/Stockholm',
+    }),
+    cron.schedule('15 3 * * *', () => {
+      void retention.run().then((result) => {
+        console.log('[retention] Purged data:', result);
+      }).catch((error: unknown) => console.error('Retention job failed:', error));
     }, {
       timezone: 'Europe/Stockholm',
     }),

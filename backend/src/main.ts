@@ -15,7 +15,7 @@ async function bootstrap(): Promise<void> {
   console.log(`Swagger docs at http://localhost:${env.PORT}/api/docs`);
 
   const shutdown = () => {
-    for (const task of app.locals.notificationTasks as Array<{ stop(): void }>) task.stop();
+    for (const task of app.locals.backgroundTasks as Array<{ stop(): void }>) task.stop();
     server.close((serverError) => {
       void app.locals.database.close().then(() => {
         process.exit(serverError ? 1 : 0);

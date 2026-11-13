@@ -17,6 +17,8 @@
     "db:seed:demo": "cross-env SEED_DEMO=true tsx src/database/seed.ts",
     "db:sync:prod": "node dist/database/sync.js",
     "db:seed:prod": "node dist/database/seed.js",
+    "db:retention": "tsx src/database/retention.ts",
+    "db:retention:prod": "node dist/database/retention.js",
     "start:render": "npm run db:sync:prod && npm run db:seed:prod && npm run start:prod"
   },
   "dependencies": {
