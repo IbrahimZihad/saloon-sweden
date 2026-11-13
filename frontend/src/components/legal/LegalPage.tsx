@@ -1,11 +1,31 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { legalDocuments } from '@/lib/legal';
+import { publicApi } from '@/lib/api';
+import { fillLegalDocument, legalDocuments, legalPlaceholders } from '@/lib/legal';
+import type { PublicSettings } from '@/lib/types';
 
 export function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
   const { lang } = useLanguage();
-  const doc = legalDocuments[kind][lang];
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
+
+  useEffect(() => {
+    if (kind !== 'privacy') return;
+    const controller = new AbortController();
+    publicApi
+      .settings(controller.signal)
+      .then(setSettings)
+      .catch(() => {
+        // Fall back to generic wording if the settings request fails.
+      });
+    return () => controller.abort();
+  }, [kind]);
+
+  const doc =
+    kind === 'privacy'
+      ? fillLegalDocument(legalDocuments.privacy[lang], legalPlaceholders(settings, lang))
+      : legalDocuments[kind][lang];
 
   return (
     <div className="container-luxe pb-24 pt-36 lg:pb-32 lg:pt-44">

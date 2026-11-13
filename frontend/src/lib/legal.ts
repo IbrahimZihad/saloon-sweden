@@ -1,4 +1,4 @@
-import type { Language } from './types';
+import type { Language, PublicSettings } from './types';
 
 export interface LegalSection {
   heading: string;
@@ -13,12 +13,14 @@ export interface LegalDocument {
 
 const privacySv: LegalDocument = {
   title: 'Integritetspolicy',
-  updated: 'Senast uppdaterad: 2026-11-07',
+  updated: 'Senast uppdaterad: 2026-11-13',
   sections: [
     {
       heading: '1. Personuppgiftsansvarig',
       paragraphs: [
-        'Salongen är personuppgiftsansvarig för behandlingen av de personuppgifter du lämnar till oss via webbplatsen, bokningssystemet eller vid kontakt med oss. Har du frågor om hur vi hanterar dina uppgifter är du välkommen att kontakta oss via de kontaktuppgifter som anges på webbplatsen.',
+        'Personuppgiftsansvarig för behandlingen av de personuppgifter du lämnar via webbplatsen, bokningssystemet eller vid kontakt med oss är {{controller}}.',
+        '{{orgNumberLine}}',
+        'Har du frågor om hur vi hanterar dina uppgifter, eller vill du utöva dina rättigheter, kontaktar du oss på {{contact}}.',
       ],
     },
     {
@@ -40,29 +42,32 @@ const privacySv: LegalDocument = {
     {
       heading: '4. Cookies',
       paragraphs: [
-        'Webbplatsen använder endast nödvändiga cookies för att sidan ska fungera, till exempel för att komma ihåg ditt språkval och ditt cookie-samtycke. Om du godkänner alla cookies kan vi även använda analyscookies för att förstå hur webbplatsen används och förbättra den.',
-        'Du kan när som helst ändra eller återkalla ditt samtycke genom att rensa webbplatsens lagrade data i din webbläsare. Nödvändiga cookies kan inte stängas av eftersom de krävs för grundläggande funktioner.',
+        'Webbplatsen använder endast nödvändiga cookies och nödvändig lokal lagring för att sidan ska fungera: språkval, inloggning för personal och en flagga för att komma ihåg att du sett denna information. Vi använder inga analys-, marknadsförings- eller tredjepartscookies.',
+        'Eftersom endast nödvändiga cookies används krävs inget samtycke. Du kan när som helst rensa webbplatsens lagrade data i din webbläsare; nödvändiga cookies kan inte stängas av eftersom de krävs för grundläggande funktioner. Om vi i framtiden inför analyscookies ber vi om ditt samtycke innan de aktiveras.',
       ],
     },
     {
       heading: '5. Lagring och gallring',
       paragraphs: [
-        'Vi sparar dina uppgifter endast så länge det är nödvändigt för de ändamål de samlades in för. Bokningsuppgifter gallras löpande när de inte längre behövs för administration eller reklamation, medan underlag som krävs för bokföring sparas i den tid bokföringslagen anger.',
-        'Kontaktmeddelanden raderas när ärendet är avslutat och inte längre behövs.',
+        'Bokningsuppgifter sparas så länge de behövs för administration och reklamation. Kunduppgifter anonymiseras automatiskt 36 månader efter senaste bokning om du inte har en kommande tid. Underlag som krävs enligt bokföringslagen sparas i sju år.',
+        'Kontaktmeddelanden raderas automatiskt 12 månader efter att ärendet markerats som hanterat.',
+        'Loggar över skickade e-postmeddelanden, inklusive mottagare och innehåll, raderas automatiskt efter 90 dagar.',
+        'Serverloggar hanteras av vår driftleverantör och sparas endast så länge det behövs för drift och säkerhet.',
       ],
     },
     {
       heading: '6. Dina rättigheter',
       paragraphs: [
         'Du har rätt att begära registerutdrag över de uppgifter vi behandlar om dig, rättelse av felaktiga uppgifter, radering (“rätten att bli bortglömd”), begränsning av behandling samt dataportabilitet. Du har även rätt att invända mot behandling som grundar sig på berättigat intresse.',
-        'Kontakta oss för att utöva dina rättigheter. Vi svarar inom den tid som följer av dataskyddsförordningen (GDPR).',
+        'Om behandlingen grundar sig på ditt samtycke, till exempel för marknadsföring, kan du när som helst återkalla samtycket. Det påverkar inte behandling som redan skett.',
+        'Kontakta oss för att utöva dina rättigheter. Vi svarar inom en månad.',
       ],
     },
     {
       heading: '7. Delning och överföring',
       paragraphs: [
-        'Vi säljer aldrig dina personuppgifter. Uppgifter kan delas med personuppgiftsbiträden som hjälper oss att driva verksamheten, till exempel leverantörer av e-postutskick och hosting. Sådana biträden är bundna av avtal som säkerställer en skyddsnivå i enlighet med GDPR.',
-        'Vi strävar efter att behandla uppgifter inom EU/EES. Om överföring utanför EU/EES sker säkerställer vi lämpliga skyddsåtgärder.',
+        'Vi säljer aldrig dina personuppgifter. Vi anlitar personuppgiftsbiträden för att driva tjänsten: Aiven (databas), Render (backend-drift), Vercel (webbhotell) samt vår e-postleverantör för bokningsbekräftelser och påminnelser. Biträdena är bundna av personuppgiftsbiträdesavtal som säkerställer en skyddsnivå i enlighet med GDPR.',
+        'Vi strävar efter att behandla uppgifter inom EU/EES. Om överföring utanför EU/EES sker, till exempel till leverantörer i USA, säkerställer vi lämpliga skyddsåtgärder såsom EU-kommissionens standardavtalsklausuler (SCC).',
       ],
     },
     {
@@ -76,12 +81,14 @@ const privacySv: LegalDocument = {
 
 const privacyEn: LegalDocument = {
   title: 'Privacy policy',
-  updated: 'Last updated: 2026-11-07',
+  updated: 'Last updated: 2026-11-13',
   sections: [
     {
       heading: '1. Data controller',
       paragraphs: [
-        'The salon is the data controller for the personal data you provide via the website, the booking system or when contacting us. If you have questions about how we handle your data, please contact us using the details on the website.',
+        'The data controller for the personal data you provide via the website, the booking system or when contacting us is {{controller}}.',
+        '{{orgNumberLine}}',
+        'If you have questions about how we handle your data, or want to exercise your rights, contact us at {{contact}}.',
       ],
     },
     {
@@ -103,29 +110,32 @@ const privacyEn: LegalDocument = {
     {
       heading: '4. Cookies',
       paragraphs: [
-        'The website uses only essential cookies required for it to function, for example to remember your language choice and cookie consent. If you accept all cookies we may also use analytics cookies to understand how the site is used and improve it.',
-        'You can change or withdraw your consent at any time by clearing the site’s stored data in your browser. Essential cookies cannot be disabled as they are required for basic functionality.',
+        'The website uses only essential cookies and essential local storage to function: language choice, staff login and a flag remembering that you have seen this information. We do not use analytics, marketing or third-party cookies.',
+        'Because only essential cookies are used, no consent is required. You can clear the site’s stored data in your browser at any time; essential cookies cannot be disabled as they are required for basic functionality. If we introduce analytics cookies in the future, we will ask for your consent before they are activated.',
       ],
     },
     {
       heading: '5. Retention',
       paragraphs: [
-        'We keep your data only as long as necessary for the purposes it was collected for. Booking data is routinely deleted when no longer needed for administration or claims, while records required for accounting are kept for the period prescribed by bookkeeping law.',
-        'Contact messages are deleted once the matter is closed and no longer needed.',
+        'Booking data is kept for as long as needed for administration and claims. Customer details are anonymised automatically 36 months after the last booking if you have no upcoming appointment. Records required by Swedish bookkeeping law are kept for seven years.',
+        'Contact messages are deleted automatically 12 months after the matter has been marked as handled.',
+        'Logs of sent e-mails, including recipient and content, are deleted automatically after 90 days.',
+        'Server logs are handled by our hosting provider and kept only as long as needed for operations and security.',
       ],
     },
     {
       heading: '6. Your rights',
       paragraphs: [
         'You have the right to request an extract of the data we process about you, rectification of inaccurate data, erasure (the “right to be forgotten”), restriction of processing and data portability. You also have the right to object to processing based on legitimate interest.',
-        'Contact us to exercise your rights. We respond within the timeframe set by the General Data Protection Regulation (GDPR).',
+        'Where processing is based on your consent, for example for marketing, you can withdraw it at any time. This does not affect processing that has already taken place.',
+        'Contact us to exercise your rights. We respond within one month.',
       ],
     },
     {
       heading: '7. Sharing and transfers',
       paragraphs: [
-        'We never sell your personal data. Data may be shared with processors that help us run the business, such as email-delivery and hosting providers. Such processors are bound by contracts ensuring a level of protection compliant with the GDPR.',
-        'We aim to process data within the EU/EEA. If a transfer outside the EU/EEA occurs we ensure appropriate safeguards.',
+        'We never sell your personal data. We use processors to run the service: Aiven (database), Render (backend hosting), Vercel (website hosting) and our e-mail provider for booking confirmations and reminders. Processors are bound by data processing agreements ensuring a level of protection compliant with the GDPR.',
+        'We aim to process data within the EU/EEA. If data is transferred outside the EU/EEA, for example to providers in the United States, we ensure appropriate safeguards such as the European Commission’s Standard Contractual Clauses (SCCs).',
       ],
     },
     {
@@ -235,3 +245,68 @@ export const legalDocuments: Record<'privacy' | 'terms', Record<Language, LegalD
   privacy: { sv: privacySv, en: privacyEn },
   terms: { sv: termsSv, en: termsEn },
 };
+
+/**
+ * The salon's organisation number, shown in the privacy policy when set.
+ * Kept in code because it is not part of the public business settings.
+ */
+const SALON_ORG_NUMBER = '';
+
+export interface LegalPlaceholders {
+  controller: string;
+  contact: string;
+  orgNumberLine: string;
+}
+
+/** Builds the controller/contact values used by the privacy policy templates. */
+export function legalPlaceholders(
+  settings: PublicSettings | null,
+  lang: Language,
+): LegalPlaceholders {
+  const sv = lang === 'sv';
+  const name = settings?.salonName?.trim() || (sv ? 'Salongen' : 'The salon');
+  const country = settings?.country === 'Sweden' && sv ? 'Sverige' : settings?.country;
+  const cityLine = [settings?.postalCode, settings?.city].filter(Boolean).join(' ');
+  const address = [settings?.address, cityLine, country].filter(Boolean).join(', ');
+
+  const contactParts = [settings?.email?.trim(), settings?.phone?.trim()].filter(
+    (value): value is string => Boolean(value),
+  );
+  const contact = contactParts.length
+    ? contactParts.join(sv ? ' eller ' : ' or ')
+    : sv
+      ? 'de kontaktuppgifter som anges på webbplatsen'
+      : 'the contact details shown on the website';
+
+  return {
+    controller: address ? `${name}, ${address}` : name,
+    contact,
+    orgNumberLine: SALON_ORG_NUMBER
+      ? `${sv ? 'Organisationsnummer' : 'Organisation number'}: ${SALON_ORG_NUMBER}.`
+      : '',
+  };
+}
+
+/** Replaces the placeholders and drops paragraphs left empty (e.g. org number). */
+export function fillLegalDocument(
+  doc: LegalDocument,
+  values: LegalPlaceholders,
+): LegalDocument {
+  const replace = (text: string) =>
+    text
+      .replaceAll('{{controller}}', values.controller)
+      .replaceAll('{{contact}}', values.contact)
+      .replaceAll('{{orgNumberLine}}', values.orgNumberLine)
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+  return {
+    ...doc,
+    sections: doc.sections
+      .map((section) => ({
+        ...section,
+        paragraphs: section.paragraphs.map(replace).filter(Boolean),
+      }))
+      .filter((section) => section.paragraphs.length > 0),
+  };
+}

@@ -163,6 +163,9 @@ Open **http://localhost:3000**. API docs: **http://localhost:3001/api/docs**.
 | `EMAIL_FROM` | From header | `Salon <no-reply@example.com>` |
 | `UPLOAD_DIRECTORY` | Image upload dir (relative to `backend/` or absolute) | `uploads` |
 | `DATABASE_CA_CERT` | Inline PEM of the MySQL CA (optional; alternative to `ssl-ca`) | — |
+| `RETENTION_CUSTOMER_MONTHS` | Anonymise customers without a booking in this many months (`0` disables) | `36` |
+| `RETENTION_CONTACT_MESSAGE_DAYS` | Delete handled contact messages after this many days | `365` |
+| `RETENTION_NOTIFICATION_DAYS` | Delete e-mail notification logs after this many days | `90` |
 | `SEED_DEMO` | Seed fictional customers/appointments | `false` |
 | `STAFF_DEMO_PASSWORD` | Password for fictional staff logins | `StaffDemo123!` |
 
@@ -339,9 +342,28 @@ DST handling (`date-fns-tz`). The UI uses a 24-hour clock. Weekdays are indexed
 
 ### GDPR
 
-Cookie-consent banner, privacy policy and terms pages. Admin-only customer data
-export (`GET /api/admin/customers/:id/export`) and erasure
-(`DELETE /api/admin/customers/:id`, anonymizes personal data).
+The privacy policy and terms are bilingual (`frontend/src/lib/legal.ts`); the
+controller name, address and contact details are filled from the business
+settings, so keep those accurate in **Admin → Settings**. If the salon has an
+organisation number, set `SALON_ORG_NUMBER` in `legal.ts` to display it.
+
+Cookies: the site uses **only essential cookies/local storage** (language,
+admin session, cookie notice), so there is no consent prompt — just an
+informational notice with a link to the policy. If analytics or marketing
+scripts are added later, gate them behind prior opt-in consent before they run.
+
+Data subject rights are handled in **Admin → Customers**:
+
+- `GET /api/admin/customers/:id/export` — machine-readable export.
+- `DELETE /api/admin/customers/:id` — erasure by anonymisation; appointment
+  rows stay for bookkeeping but the link to the person is removed.
+
+Retention runs automatically every day at 03:15 (Europe/Stockholm): inactive
+customers are anonymised, handled contact messages and e-mail notification logs
+are deleted. Periods are configurable with the `RETENTION_*` variables, and the
+job can be run manually with `npm run db:retention` (or `db:retention:prod` from
+the compiled build). See `docs/gdpr.md` for the processing record template,
+processor list and breach checklist.
 
 ---
 

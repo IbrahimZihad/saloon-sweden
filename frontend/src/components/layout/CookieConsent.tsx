@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { Cookie } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 
+// The site only uses essential storage, so this is an informational notice
+// rather than a consent prompt. The key is kept for continuity with earlier
+// versions of the banner.
 const STORAGE_KEY = 'salon_cookie_consent';
 
 export function CookieConsent() {
@@ -12,22 +15,19 @@ export function CookieConsent() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) setVisible(true);
+    if (!window.localStorage.getItem(STORAGE_KEY)) setVisible(true);
   }, []);
 
-  const choose = (value: 'all' | 'essential') => {
-    window.localStorage.setItem(STORAGE_KEY, value);
-    window.dispatchEvent(new CustomEvent('salon-consent', { detail: value }));
+  const acknowledge = () => {
+    window.localStorage.setItem(STORAGE_KEY, 'acknowledged');
     setVisible(false);
   };
 
   if (!visible) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-label="Cookie consent"
+    <aside
+      aria-label="Cookie notice"
       className="animate-fade-in fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-ivory/95 backdrop-blur-md"
     >
       <div className="container-luxe flex flex-col items-start gap-5 py-6 md:flex-row md:items-center md:justify-between">
@@ -41,15 +41,12 @@ export function CookieConsent() {
             .
           </p>
         </div>
-        <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-          <button onClick={() => choose('essential')} className="btn btn-outline !px-5 !py-2.5 text-[0.7rem]">
-            {t('cookie.essential')}
-          </button>
-          <button onClick={() => choose('all')} className="btn btn-primary !px-5 !py-2.5 text-[0.7rem]">
-            {t('cookie.accept')}
+        <div className="flex shrink-0">
+          <button onClick={acknowledge} className="btn btn-primary !px-5 !py-2.5 text-[0.7rem]">
+            {t('cookie.ok')}
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

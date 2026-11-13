@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bell, BellOff, X } from 'lucide-react';
 import { adminApi } from '@/lib/admin-api';
 import { DEFAULT_TZ, formatLocalTime } from '@/lib/format';
+import { bookingAnnouncement, pickSwedishVoice } from '@/lib/speech';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { BookingNotification } from '@/lib/types';
 
@@ -15,9 +16,7 @@ const SOUND_STORAGE_KEY = 'salon-admin-announcements';
 
 function swedishVoice(): SpeechSynthesisVoice | undefined {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return undefined;
-  return window.speechSynthesis
-    .getVoices()
-    .find((voice) => voice.lang.replace('_', '-').toLowerCase().startsWith('sv'));
+  return pickSwedishVoice(window.speechSynthesis.getVoices());
 }
 
 /** Reads out a booking in Swedish through the device speakers. */
@@ -110,7 +109,7 @@ export function AdminNotifications() {
 
         if (soundRef.current) {
           for (const item of visible) {
-            announce(`Ny bokning med ${item.staffName}`);
+            announce(bookingAnnouncement(item.staffName));
           }
         }
       } catch {

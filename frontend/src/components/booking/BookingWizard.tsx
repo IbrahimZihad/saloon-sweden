@@ -418,6 +418,7 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
                 <div className="sm:col-span-2">
                   <label className="field-label" htmlFor="notes">{t('booking.details.notes')}</label>
                   <textarea id="notes" rows={4} className="field" placeholder={t('booking.details.notesPlaceholder')} {...register('notes')} />
+                  <p className="mt-2 text-xs leading-relaxed text-stone-light">{t('booking.details.notesHint')}</p>
                   {errors.notes && <p className="field-error">{errors.notes.message}</p>}
                 </div>
                 <div className="sm:col-span-2">

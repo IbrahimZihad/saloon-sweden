@@ -147,6 +147,7 @@ const sv: Dictionary = {
   'booking.details.phone': 'Telefon',
   'booking.details.notes': 'Övrigt (valfritt)',
   'booking.details.notesPlaceholder': 'Berätta gärna om önskemål eller allergier…',
+  'booking.details.notesHint': 'Undvik att ange känsliga uppgifter som hälsouppgifter. Berätta hellre om allergier direkt till din stylist.',
   'booking.details.consent': 'Jag godkänner behandlingen av mina uppgifter enligt',
   'booking.details.privacy': 'integritetspolicyn',
   'booking.confirm.title': 'Granska din bokning',
@@ -192,10 +193,9 @@ const sv: Dictionary = {
   'footer.rights': 'Alla rättigheter förbehållna.',
   'footer.admin': 'Personalinloggning',
 
-  // Cookie consent
-  'cookie.text': 'Vi använder cookies för att förbättra din upplevelse och analysera trafik. Du väljer själv vilka cookies du godkänner.',
-  'cookie.accept': 'Godkänn alla',
-  'cookie.essential': 'Endast nödvändiga',
+  // Cookie notice
+  'cookie.text': 'Vi använder endast nödvändiga cookies för att webbplatsen ska fungera, till exempel för språkval och inloggning. Inga analys- eller marknadsföringscookies används.',
+  'cookie.ok': 'Jag förstår',
   'cookie.readMore': 'Läs mer',
 
   // Common
@@ -360,6 +360,7 @@ const en: Dictionary = {
   'booking.details.phone': 'Phone',
   'booking.details.notes': 'Notes (optional)',
   'booking.details.notesPlaceholder': 'Feel free to share wishes or allergies…',
+  'booking.details.notesHint': 'Please avoid sensitive details such as health information. Tell your stylist about allergies in person instead.',
   'booking.details.consent': 'I agree to the processing of my data according to the',
   'booking.details.privacy': 'privacy policy',
   'booking.confirm.title': 'Review your booking',
@@ -403,9 +404,8 @@ const en: Dictionary = {
   'footer.rights': 'All rights reserved.',
   'footer.admin': 'Staff login',
 
-  'cookie.text': 'We use cookies to improve your experience and analyse traffic. You choose which cookies to accept.',
-  'cookie.accept': 'Accept all',
-  'cookie.essential': 'Essential only',
+  'cookie.text': 'We use only essential cookies to make the website work, for example for language choice and login. No analytics or marketing cookies are used.',
+  'cookie.ok': 'Got it',
   'cookie.readMore': 'Read more',
 
   'common.loading': 'Loading…',
