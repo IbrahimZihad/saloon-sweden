@@ -13,9 +13,7 @@ export interface SpeechVoiceLike {
 export function pickSwedishVoice<T extends SpeechVoiceLike>(
   voices: readonly T[],
 ): T | undefined {
-  const swedish = voices.filter((voice) =>
-    voice.lang.replace('_', '-').toLowerCase().startsWith('sv'),
-  );
+  const swedish = voices.filter((voice) => /^sv([-_]|$)/i.test(voice.lang));
   return swedish.find((voice) => voice.localService) ?? swedish[0];
 }
 
