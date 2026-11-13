@@ -4,7 +4,10 @@ import type { Server } from 'node:http';
 import { Op } from 'sequelize';
 import request from 'supertest';
 import { createApp } from '../src/app';
-import { Appointment, Service, Staff } from '../src/database/models';
+import { Appointment, ContactMessage, Customer, EmailNotification, Service, Staff } from '../src/database/models';
+import { NotificationStatus, NotificationType } from '../src/database/enums';
+import type { DatabaseService } from '../src/database/database.service';
+import type { RetentionService } from '../src/retention/retention.service';
 import { closeDatabase, resetDatabase, seedAll } from './db';
 
 // sanitize-html pulls in an ESM-only htmlparser2 that Jest's CJS runtime cannot
@@ -436,6 +439,91 @@ describe('App integration (isolated test database)', () => {
         .get('/api/admin/appointments/notifications')
         .query({ since })
         .expect(401);
+    });
+  });
+
+  describe('gdpr retention', () => {
+    it('anonymises inactive customers and purges old operational logs', async () => {
+      const db = app.locals.database as DatabaseService;
+      const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+
+      const oldContact = await ContactMessage.create({
+        name: 'Gammal Kontakt',
+        email: 'gammal.kontakt@example.com',
+        phone: null,
+        message: 'Hej',
+        handled: true,
+      });
+      const recentContact = await ContactMessage.create({
+        name: 'Ny Kontakt',
+        email: 'ny.kontakt@example.com',
+        phone: null,
+        message: 'Hej igen',
+        handled: true,
+      });
+      await db.query('UPDATE `ContactMessage` SET `createdAt` = :old WHERE `id` = :id', {
+        replacements: { old, id: oldContact.id },
+      });
+
+      const oldNotification = await EmailNotification.create({
+        appointmentId: null,
+        type: NotificationType.BOOKING_CONFIRMATION,
+        status: NotificationStatus.SENT,
+        toEmail: 'gammal.kontakt@example.com',
+        subject: 'Bokning',
+        htmlBody: '<p>Hej</p>',
+        attempts: 1,
+        sentAt: old,
+      });
+      const recentNotification = await EmailNotification.create({
+        appointmentId: null,
+        type: NotificationType.BOOKING_CONFIRMATION,
+        status: NotificationStatus.SENT,
+        toEmail: 'ny.kontakt@example.com',
+        subject: 'Bokning',
+        htmlBody: '<p>Hej igen</p>',
+        attempts: 1,
+        sentAt: new Date(),
+      });
+      await db.query('UPDATE `EmailNotification` SET `createdAt` = :old WHERE `id` = :id', {
+        replacements: { old, id: oldNotification.id },
+      });
+
+      const inactive = await Customer.create({
+        fullName: 'Inaktiv Kund',
+        email: 'inaktiv.kund@example.com',
+        phone: '-',
+        notes: null,
+        marketingConsent: false,
+      });
+      const subscriber = await Customer.create({
+        fullName: 'Nyhetsbrev Kund',
+        email: 'nyhetsbrev.kund@example.com',
+        phone: '-',
+        notes: null,
+        marketingConsent: true,
+      });
+      const active = await Customer.findOne({ where: { email: CUSTOMER_EMAIL } });
+      expect(active).not.toBeNull();
+
+      const result = await (app.locals.retention as RetentionService).run();
+
+      expect(await ContactMessage.findByPk(oldContact.id)).toBeNull();
+      expect(await ContactMessage.findByPk(recentContact.id)).not.toBeNull();
+      expect(await EmailNotification.findByPk(oldNotification.id)).toBeNull();
+      expect(await EmailNotification.findByPk(recentNotification.id)).not.toBeNull();
+
+      const anonymised = await Customer.findByPk(inactive.id);
+      expect(anonymised?.fullName).toBe('Anonymized customer');
+      expect(anonymised?.email).toBe(`anonymized-${inactive.id}@removed.local`);
+
+      // Opted-in contacts and customers with a booking inside the window stay intact.
+      expect((await Customer.findByPk(subscriber.id))?.email).toBe('nyhetsbrev.kund@example.com');
+      expect((await Customer.findByPk(active!.id))?.email).toBe(CUSTOMER_EMAIL);
+
+      expect(result.customersAnonymised).toBeGreaterThanOrEqual(1);
+      expect(result.contactMessagesDeleted).toBeGreaterThanOrEqual(1);
+      expect(result.notificationLogsDeleted).toBeGreaterThanOrEqual(1);
     });
   });
 });
