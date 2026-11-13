@@ -13,7 +13,9 @@ prototype.
 - **Admin:** dashboard with statistics and charts, appointment table + calendar,
   manual/phone bookings, confirm/reschedule/cancel/complete/no-show, services,
   categories, staff, customers, testimonials, gallery, messages and business
-  settings.
+  settings. New online bookings raise a live toast in the admin panel and are
+  read aloud in Swedish ("Ny bokning med {stylist}") through browser speech
+  synthesis; sound can be muted per browser.
 - **Auth:** `ADMIN` / `STAFF` roles, bcrypt password hashing, JWT in HTTP-only
   cookies, RBAC, password reset and global rate limiting. Customers book **without**
   an account.

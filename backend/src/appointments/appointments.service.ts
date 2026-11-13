@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Logger, NotFoundException } fro
 import sanitizeHtml from 'sanitize-html';
 import { Op, QueryTypes, Transaction, UniqueConstraintError, col, fn } from 'sequelize';
 import { DatabaseService } from '../database/database.service';
-import { AppointmentStatus, NotificationType } from '../database/enums';
+import { AppointmentSource, AppointmentStatus, NotificationType } from '../database/enums';
 import {
   Appointment,
   AppointmentService,
@@ -192,6 +192,46 @@ export class AppointmentsService {
       distinct: true,
     });
     return paginated(rows, count, page, limit);
+  }
+
+  /**
+   * Lightweight feed for the admin panel's live booking notifications.
+   * Returns only bookings made from the public website, newest last, so the
+   * panel can show a toast and read the stylist's name aloud.
+   */
+  async recentOnlineBookings(since: Date) {
+    const rows = await Appointment.findAll({
+      where: {
+        source: AppointmentSource.ONLINE,
+        createdAt: { [Op.gt]: since },
+      },
+      include: [
+        { model: Customer, as: 'customer', attributes: ['id', 'fullName'] },
+        { model: Staff, as: 'staff', attributes: ['id', 'name'] },
+        {
+          model: AppointmentService,
+          as: 'services',
+          attributes: ['serviceNameSv', 'serviceNameEn', 'durationMinutes'],
+        },
+      ],
+      order: [['createdAt', 'ASC']],
+      limit: 20,
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      bookingReference: row.bookingReference,
+      staffId: row.staffId,
+      staffName: row.staff?.name ?? '',
+      customerName: row.customer?.fullName ?? '',
+      startsAt: row.startsAt,
+      createdAt: row.createdAt,
+      services: (row.services ?? []).map((service) => ({
+        serviceNameSv: service.serviceNameSv,
+        serviceNameEn: service.serviceNameEn,
+        durationMinutes: service.durationMinutes,
+      })),
+    }));
   }
 
   async findOne(id: string) {

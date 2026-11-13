@@ -381,5 +381,61 @@ describe('App integration (isolated test database)', () => {
         .expect(200);
       expect(res.body.data.some((a: { bookingReference: string }) => a.bookingReference === happyReference)).toBe(true);
     });
+
+    it('feeds new online bookings to the admin alert endpoint but not manual ones', async () => {
+      const since = new Date(Date.now() - 2000).toISOString();
+      const online = await request(baseUrl)
+        .post('/api/public/appointments')
+        .send(body(slots[8]))
+        .expect(201);
+
+      const feed = await request(baseUrl)
+        .get('/api/admin/appointments/notifications')
+        .query({ since })
+        .set('Cookie', adminCookie)
+        .expect(200);
+      const entry = feed.body.items.find((item: { id: string }) => item.id === online.body.id);
+      expect(entry).toBeDefined();
+      expect(entry.staffName).toBe(online.body.staff.name);
+      expect(entry.customerName).toBe('Integration Kund');
+
+      // A different day avoids colliding with the slots used above.
+      const datesRes = await request(baseUrl)
+        .get('/api/public/availability/dates')
+        .query({ serviceIds: serviceId, staffId: annaId })
+        .expect(200);
+      const otherDate: string = datesRes.body.dates[datesRes.body.dates.length - 1];
+      const otherSlots = await request(baseUrl)
+        .get('/api/public/availability/slots')
+        .query({ serviceIds: serviceId, date: otherDate, staffId: annaId })
+        .expect(200);
+
+      const manualSince = new Date(Date.now() - 1000).toISOString();
+      const manual = await request(baseUrl)
+        .post('/api/admin/appointments')
+        .set('Cookie', adminCookie)
+        .send({
+          serviceIds: [serviceId],
+          staffId: annaId,
+          startsAt: otherSlots.body.slots[0].startsAt,
+          fullName: 'Telefon Kund 2',
+          email: 'telefon.kund@example.com',
+          phone: '+46 70 000 00 00',
+          source: 'PHONE',
+        })
+        .expect(201);
+
+      const after = await request(baseUrl)
+        .get('/api/admin/appointments/notifications')
+        .query({ since: manualSince })
+        .set('Cookie', adminCookie)
+        .expect(200);
+      expect(after.body.items.some((item: { id: string }) => item.id === manual.body.id)).toBe(false);
+
+      await request(baseUrl)
+        .get('/api/admin/appointments/notifications')
+        .query({ since })
+        .expect(401);
+    });
   });
 });

@@ -308,6 +308,20 @@ export async function createApp(): Promise<Express> {
     appointments.findByReference(routeParam(req, 'reference'), req.query.email as string | undefined), { limit: 20 });
   register('get', '/admin/appointments', async (req) =>
     appointments.findAll(await validateDto(AppointmentFilterDto, req.query)), { roles: adminAndStaff });
+  // Must be registered before `/admin/appointments/:id`, otherwise Express
+  // matches "notifications" as an appointment id.
+  register('get', '/admin/appointments/notifications', async (req) => {
+    const sinceParam = req.query.since;
+    const since = typeof sinceParam === 'string' ? new Date(sinceParam) : new Date();
+    if (Number.isNaN(since.getTime())) {
+      throw new BadRequestException('since must be an ISO timestamp');
+    }
+    // Captured before the query so anything created while it runs is picked up
+    // on the next poll instead of being skipped.
+    const serverTime = new Date();
+    const items = await appointments.recentOnlineBookings(since);
+    return { items, serverTime };
+  }, { roles: adminAndStaff });
   register('get', '/admin/appointments/:id', async (req) => appointments.findOne(routeParam(req, 'id')), { roles: adminAndStaff });
   register('post', '/admin/appointments', async (req) => appointments.createAdmin(
     await validateDto(CreateAdminAppointmentDto, req.body),

@@ -137,6 +137,17 @@ export interface EmailNotificationSummary {
   lastError: string | null;
 }
 
+export interface BookingNotification {
+  id: string;
+  bookingReference: string;
+  staffId: string;
+  staffName: string;
+  customerName: string;
+  startsAt: string;
+  createdAt: string;
+  services: { serviceNameSv: string; serviceNameEn: string; durationMinutes: number }[];
+}
+
 export interface Appointment {
   id: string;
   bookingReference: string;

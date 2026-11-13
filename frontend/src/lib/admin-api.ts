@@ -6,6 +6,7 @@ import type {
   Appointment,
   AppointmentSource,
   AppointmentStatus,
+  BookingNotification,
   BusinessHours,
   ContactMessage,
   CustomerDetail,
@@ -47,6 +48,10 @@ export const adminApi = {
 
   appointments: (filter: AppointmentFilter = {}) =>
     apiFetch<Paginated<Appointment>>(`/admin/appointments${qs({ ...filter })}`),
+  bookingNotifications: (since: string) =>
+    apiFetch<{ items: BookingNotification[]; serverTime: string }>(
+      `/admin/appointments/notifications${qs({ since })}`,
+    ),
   appointment: (id: string) => apiFetch<Appointment>(`/admin/appointments/${id}`),
   createAppointment: (input: CreateAdminAppointmentInput) =>
     apiFetch<Appointment>('/admin/appointments', { method: 'POST', body: input }),

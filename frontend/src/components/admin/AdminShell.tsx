@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAdminAuth } from '@/components/admin/AdminAuthProvider';
+import { AdminNotifications } from '@/components/admin/AdminNotifications';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { cn } from '@/lib/utils';
 
@@ -124,6 +125,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </header>
         <main className="px-6 py-8 lg:px-10 lg:py-10">{children}</main>
       </div>
+
+      <AdminNotifications />
 
       {open && (
         <button className="fixed right-4 top-4 z-[60] text-ivory lg:hidden" onClick={() => setOpen(false)} aria-label={t('admin.close')}>
