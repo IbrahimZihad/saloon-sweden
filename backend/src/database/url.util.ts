@@ -80,10 +80,12 @@ export function parseDatabaseUrl(rawUrl: string): ParsedDatabaseUrl {
   const caFromEnv = certificateFromEnv();
 
   const disabled = DISABLE_MODES.has(mode) || DISABLE_MODES.has(sslFlag);
+  // The inline CA only augments an explicit TLS request; it never turns TLS on
+  // by itself, so unrelated connections (e.g. the local test database) are not
+  // accidentally forced onto TLS.
   const wantsSsl =
     !disabled &&
     (Boolean(certPath) ||
-      Boolean(caFromEnv) ||
       VERIFY_MODES.has(mode) ||
       ENCRYPT_ONLY_MODES.has(mode) ||
       TRUTHY.has(sslFlag));

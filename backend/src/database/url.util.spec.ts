@@ -89,7 +89,7 @@ describe('DATABASE_CA_CERT', () => {
     else process.env.DATABASE_CA_CERT = original;
   });
 
-  it('enables verified TLS from inline PEM', () => {
+  it('enables verified TLS from inline PEM when the URL requests it', () => {
     process.env.DATABASE_CA_CERT = pem;
     const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon?ssl-mode=VERIFY_CA');
     expect(parsed.ssl?.rejectUnauthorized).toBe(true);
@@ -98,14 +98,14 @@ describe('DATABASE_CA_CERT', () => {
 
   it('accepts escaped newlines, as pasted into a hosting dashboard', () => {
     process.env.DATABASE_CA_CERT = pem.replace(/\n/g, '\\n');
-    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon');
+    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon?ssl-mode=VERIFY_CA');
     expect(parsed.ssl?.ca?.toString()).toBe(pem);
     expect(parsed.ssl?.rejectUnauthorized).toBe(true);
   });
 
-  it('does not override an explicit DISABLED mode', () => {
+  it('does not force TLS onto a URL that did not ask for it', () => {
     process.env.DATABASE_CA_CERT = pem;
-    const parsed = parseDatabaseUrl('mysql://u:p@db.example.com:3306/salon?ssl-mode=DISABLED');
+    const parsed = parseDatabaseUrl('mysql://u:p@localhost:3307/salon_booking_test');
     expect(parsed.ssl).toBeUndefined();
   });
 });
