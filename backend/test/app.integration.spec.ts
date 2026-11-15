@@ -287,6 +287,59 @@ describe('App integration (isolated test database)', () => {
       expect(rows).toBe(1);
     });
 
+    it('rejects partial overlaps and allows back-to-back appointments', async () => {
+      // Use a day that no other test books on, so the slots are pristine.
+      const datesRes = await request(baseUrl)
+        .get('/api/public/availability/dates')
+        .query({ serviceIds: serviceId, staffId: annaId })
+        .expect(200);
+      const date: string = datesRes.body.dates[datesRes.body.dates.length - 2];
+      const slotsRes = await request(baseUrl)
+        .get('/api/public/availability/slots')
+        .query({ serviceIds: serviceId, date, staffId: annaId })
+        .expect(200);
+      const base: Slot = slotsRes.body.slots[0];
+      expect(base).toBeDefined();
+
+      const created = await request(baseUrl)
+        .post('/api/public/appointments')
+        .send(body(base, { email: 'overlap.base@example.com' }))
+        .expect(201);
+
+      // 15 minutes into a 30-minute appointment: the intervals overlap.
+      const overlapStart = new Date(new Date(base.startsAt).getTime() + 15 * 60_000);
+      const clash = await request(baseUrl)
+        .post('/api/public/appointments')
+        .send(
+          body(base, {
+            email: 'overlap.partial@example.com',
+            startsAt: overlapStart.toISOString(),
+          }),
+        );
+      expect([400, 409]).toContain(clash.status);
+
+      // Back-to-back is not an overlap: starting exactly at the previous end.
+      const adjacent = await request(baseUrl)
+        .post('/api/public/appointments')
+        .send(
+          body(base, {
+            email: 'overlap.adjacent@example.com',
+            startsAt: new Date(base.endsAt).toISOString(),
+          }),
+        )
+        .expect(201);
+
+      const bookedMinutes = await Appointment.count({
+        where: {
+          staffId: annaId,
+          startsAt: { [Op.in]: [new Date(base.startsAt), new Date(adjacent.body.startsAt)] },
+          status: { [Op.ne]: 'CANCELLED' },
+        },
+      });
+      expect(bookedMinutes).toBe(2);
+      expect(created.body.endsAt).toBe(base.endsAt);
+    });
+
     it('frees the slot when an appointment is cancelled', async () => {
       const created = await request(baseUrl)
         .post('/api/public/appointments')
