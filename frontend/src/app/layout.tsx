@@ -11,6 +11,9 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  alternates: {
+    canonical: '/',
+  },
   title: {
     default: 'Salong Sweden — Frisör & onlinebokning',
     template: '%s — Salong Sweden',
@@ -20,6 +23,7 @@ export const metadata: Metadata = {
   keywords: ['frisör', 'salong', 'klippning', 'färgning', 'onlinebokning', 'Sweden'],
   openGraph: {
     type: 'website',
+    url: '/',
     locale: 'sv_SE',
     siteName: 'Salong Sweden',
     title: 'Salong Sweden | Frisör, klippning & hårfärg',
