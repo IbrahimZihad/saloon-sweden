@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, Check, Clock, Loader2, User } from 'lucide-react
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { BookingCalendar } from '@/components/booking/BookingCalendar';
 import { detailsSchema, type DetailsForm } from '@/lib/booking-schema';
+import { filterBookableSlots, deviceTimeZone } from '@/lib/slots';
 import { publicApi, ApiError } from '@/lib/api';
 import { DEFAULT_TZ, formatDateStr, formatDuration, formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -35,8 +36,14 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
   const searchParams = useSearchParams();
 
   const tz = settings?.timezone ?? DEFAULT_TZ;
-  const todayStr = formatInTimeZone(new Date(), tz, 'yyyy-MM-dd');
+  // Device clock, refreshed periodically so the wizard notices midnight and
+  // slots that become past while the page stays open.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const todayStr = formatInTimeZone(new Date(nowMs), tz, 'yyyy-MM-dd');
   const maxDateStr = addDaysStr(todayStr, settings?.maxAdvanceBookingDays ?? 60);
+
+  // Set after mount: the server cannot know the visitor's time zone.
+  const [deviceTz, setDeviceTz] = useState<string | null>(null);
 
   const [step, setStep] = useState(0);
   const [serviceIds, setServiceIds] = useState<string[]>(() => {
@@ -121,6 +128,67 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
     if (step !== 3) return;
     const cleanup = refreshSlots();
     return cleanup;
+  }, [step, refreshSlots]);
+
+  // Track the device clock and time zone. Refresh on focus/visibility so a tab
+  // that was left open does not keep offering times that have since passed.
+  useEffect(() => {
+    const tick = () => setNowMs(Date.now());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const timer = window.setInterval(tick, 60_000);
+    window.addEventListener('focus', tick);
+    window.addEventListener('pageshow', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    setDeviceTz(deviceTimeZone());
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', tick);
+      window.removeEventListener('pageshow', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  // Drop slots that already started according to the visitor's device clock.
+  const visibleSlots = useMemo(() => filterBookableSlots(slots, nowMs), [slots, nowMs]);
+
+  // Dates the calendar may offer: never before "today" in salon time, never
+  // beyond the booking window. Guards against a list fetched before midnight.
+  const bookableDates = useMemo(
+    () => dates.filter((d) => d >= todayStr && d <= maxDateStr),
+    [dates, todayStr, maxDateStr],
+  );
+
+  // A slot chosen earlier may have passed or been taken while the tab was open.
+  useEffect(() => {
+    if (!slot) return;
+    const stillOffered = visibleSlots.some(
+      (candidate) => candidate.startsAt === slot.startsAt && candidate.staffId === slot.staffId,
+    );
+    if (!stillOffered) setSlot(null);
+  }, [visibleSlots, slot]);
+
+  // Re-fetch when the visitor returns to the tab.
+  useEffect(() => {
+    if (step !== 3) return;
+    let cleanup: (() => void) | undefined;
+    const run = () => {
+      cleanup?.();
+      cleanup = refreshSlots();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') run();
+    };
+    window.addEventListener('focus', run);
+    window.addEventListener('pageshow', run);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cleanup?.();
+      window.removeEventListener('focus', run);
+      window.removeEventListener('pageshow', run);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [step, refreshSlots]);
 
   const toggleService = (id: string) => {
@@ -342,11 +410,11 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
                   <Loading label={t('common.loading')} />
                 ) : loadError ? (
                   <ErrorNote message={loadError} />
-                ) : dates.length === 0 ? (
+                ) : bookableDates.length === 0 ? (
                   <p className="text-sm text-stone">{t('booking.date.none')}</p>
                 ) : (
                   <BookingCalendar
-                    availableDates={dates}
+                    availableDates={bookableDates}
                     selected={date}
                     onSelect={chooseDate}
                     minDate={todayStr}
@@ -362,16 +430,17 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
             <div className="animate-fade-in">
               <h2 className="font-serif text-3xl">{t('booking.time.title')}</h2>
               {date && <p className="mt-2 text-sm capitalize text-stone">{formatDateStr(date, lang)}</p>}
+              <p className="mt-1 text-xs text-stone-light">{t('booking.time.timezoneNote', { tz })}</p>
               <div className="mt-8">
                 {slotsLoading ? (
                   <Loading label={t('booking.time.loading')} />
                 ) : loadError ? (
                   <ErrorNote message={loadError} />
-                ) : slots.length === 0 ? (
+                ) : visibleSlots.length === 0 ? (
                   <p className="text-sm text-stone">{t('booking.time.none')}</p>
                 ) : (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    {slots.map((s) => (
+                    {visibleSlots.map((s) => (
                       <button
                         key={`${s.startsAt}-${s.staffId}`}
                         type="button"
@@ -384,6 +453,13 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
                         )}
                       >
                         <span className="block text-sm tabular-nums">{s.startTime}</span>
+                        {deviceTz && deviceTz !== tz && (
+                          <span className="mt-0.5 block text-[0.62rem] opacity-70">
+                            {t('booking.time.otherTime', {
+                              time: formatInTimeZone(new Date(s.startsAt), deviceTz, 'HH:mm'),
+                            })}
+                          </span>
+                        )}
                         {staffId === 'any' && (
                           <span className="mt-0.5 block truncate text-[0.62rem] opacity-70">{s.staffName}</span>
                         )}

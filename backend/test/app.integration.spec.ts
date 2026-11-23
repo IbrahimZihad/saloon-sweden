@@ -218,6 +218,31 @@ describe('App integration (isolated test database)', () => {
       }
     });
 
+    it('marks availability uncacheable and respects the booking notice window', async () => {
+      const settingsRes = await request(baseUrl).get('/api/public/settings').expect(200);
+      const noticeMinutes = Number(settingsRes.body.minBookingNoticeMinutes);
+      expect(noticeMinutes).toBeGreaterThanOrEqual(0);
+
+      const datesRes = await request(baseUrl)
+        .get('/api/public/availability/dates')
+        .query({ serviceIds: serviceId, staffId: annaId })
+        .expect(200);
+      const date: string = datesRes.body.dates[0];
+      expect(date).toBeDefined();
+
+      const before = Date.now();
+      const res = await request(baseUrl)
+        .get('/api/public/availability/slots')
+        .query({ serviceIds: serviceId, date, staffId: annaId })
+        .expect(200);
+
+      expect(res.headers['cache-control']).toContain('no-store');
+      const earliest = before + noticeMinutes * 60_000;
+      for (const slot of res.body.slots as Slot[]) {
+        expect(new Date(slot.startsAt).getTime()).toBeGreaterThanOrEqual(earliest);
+      }
+    });
+
     it('rejects a past date (400)', async () => {
       await request(baseUrl)
         .get('/api/public/availability/slots')

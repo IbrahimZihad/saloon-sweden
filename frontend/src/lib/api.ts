@@ -115,15 +115,17 @@ export const publicApi = {
     apiFetch<Testimonial[]>('/public/testimonials', { signal }),
   gallery: (signal?: AbortSignal) =>
     apiFetch<GalleryImage[]>('/public/gallery', { signal }),
+  // Availability depends on the current time, so never serve it from the
+  // browser cache: a stale list could still contain times that already passed.
   availableDates: (serviceIds: string[], staffId?: string, signal?: AbortSignal) =>
     apiFetch<DatesResponse>(
       `/public/availability/dates${qs({ serviceIds: serviceIds.join(','), staffId })}`,
-      { signal },
+      { signal, cache: 'no-store' },
     ),
   slots: (serviceIds: string[], date: string, staffId?: string, signal?: AbortSignal) =>
     apiFetch<SlotsResponse>(
       `/public/availability/slots${qs({ serviceIds: serviceIds.join(','), date, staffId })}`,
-      { signal },
+      { signal, cache: 'no-store' },
     ),
   book: (input: BookAppointmentInput) =>
     apiFetch<Appointment>('/public/appointments', { method: 'POST', body: input }),

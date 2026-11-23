@@ -328,6 +328,14 @@ All instants are stored in **UTC** and rendered in `Europe/Stockholm` with corre
 DST handling (`date-fns-tz`). The UI uses a 24-hour clock. Weekdays are indexed
 `0 = Monday … 6 = Sunday`; business hours are minutes-since-midnight.
 
+Booking times are shown in salon time. The picker additionally drops any slot
+whose absolute `startsAt` is not after the visitor's device clock (checked on
+render and every 60 s), re-fetches when the tab regains focus, and both the API
+(`Cache-Control: no-store`) and the client (`cache: 'no-store'`) refuse to reuse
+availability responses, so a past time cannot remain selectable from a stale
+page. When the visitor's time zone differs, each slot also shows the equivalent
+device-local time.
+
 ### Auth & security
 
 - bcrypt password hashing; JWT stored in the `salon_token` **HTTP-only** cookie

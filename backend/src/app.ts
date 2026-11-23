@@ -71,6 +71,8 @@ interface RouteOptions {
   statusCode?: number;
   limit?: number;
   upload?: RequestHandler;
+  /** Marks time-sensitive responses so no cache may reuse them. */
+  noStore?: boolean;
 }
 
 function asyncHandler(handler: (req: AuthenticatedRequest, res: Response) => Promise<unknown>): RequestHandler {
@@ -250,6 +252,7 @@ export async function createApp(): Promise<Express> {
     if (options.roles) middleware.push(authenticate, roleGuard(options.roles));
     if (options.upload) middleware.push(options.upload);
     const wrapped = asyncHandler(async (req, res) => {
+      if (options.noStore) res.setHeader('Cache-Control', 'no-store');
       if (options.queryDto) req.query = await validateDto(options.queryDto, req.query) as Request['query'];
       const result = await handler(req, res);
       if (!res.headersSent) {
@@ -349,11 +352,11 @@ export async function createApp(): Promise<Express> {
     availability.getAvailableDates(
       (await validateDto(AvailabilityQueryDto, req.query)).serviceIds,
       (req.query.staffId as string | undefined),
-    ), { limit: 60 });
+    ), { limit: 60, noStore: true });
   register('get', '/public/availability/slots', async (req) => {
     const query = await validateDto(AvailabilitySlotsQueryDto, req.query);
     return availability.getSlots(query.serviceIds, query.date, query.staffId);
-  }, { limit: 60 });
+  }, { limit: 60, noStore: true });
 
   register('get', '/public/categories', () => categories.findPublic());
   register('get', '/admin/categories', () => categories.findAll(), { roles: admin });

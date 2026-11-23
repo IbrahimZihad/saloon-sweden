@@ -85,7 +85,8 @@ export function BookingCalendar({ availableDates, selected, onSelect, minDate, m
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
           const dateStr = toStr(view.y, view.m, day);
-          const isAvailable = available.has(dateStr);
+          const isAvailable =
+            available.has(dateStr) && dateStr >= minDate && dateStr <= maxDate;
           const isSelected = selected === dateStr;
           return (
             <button
