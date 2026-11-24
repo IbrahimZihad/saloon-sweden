@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
 import { BookingWizard } from '@/components/booking/BookingWizard';
 import { publicApi } from '@/lib/api';
 import type { PublicSettings, PublicStaff, Service } from '@/lib/types';
@@ -26,9 +25,9 @@ export default async function BookingPage() {
     load(publicApi.settings(), null as PublicSettings | null),
   ]);
 
-  return (
-    <Suspense fallback={<div className="container-luxe pt-40 text-center text-stone">Laddar…</div>}>
-      <BookingWizard services={services} staff={staff} settings={settings} />
-    </Suspense>
-  );
+  // No Suspense boundary: the page is `force-dynamic`, so `useSearchParams` in
+  // the wizard resolves on the server render. Rendering the wizard inline also
+  // means the form is real HTML in the first paint instead of a streamed
+  // boundary that relies on requestAnimationFrame to swap in.
+  return <BookingWizard services={services} staff={staff} settings={settings} />;
 }
