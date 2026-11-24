@@ -134,15 +134,38 @@ export class AvailabilityService {
   async getAvailableDates(serviceIds: string[], staffId?: string): Promise<{ dates: string[] }> {
     const settings = await this.settings.getSettings();
     const tz = settings.timezone;
-    const { durationMinutes } = await this.resolveServices(serviceIds);
-    const staff = await this.qualifiedStaff(serviceIds, staffId);
+    const today = todayLocalStr(tz);
+    const windowStart = zonedDateTimeToUtc(today, 0, tz);
+    const windowEnd = zonedDateTimeToUtc(
+      addDaysToDateStr(today, settings.maxAdvanceBookingDays + 1),
+      0,
+      tz,
+    );
+    const earliest = new Date(Date.now() + settings.minBookingNoticeMinutes * 60_000);
+
+    // These reads are independent, so they go out together. Bookings are fetched
+    // once for the whole window (previously one query per open day, ~50 round
+    // trips) and then matched to each day in memory.
+    const [{ durationMinutes }, staff, businessHours, appointments] = await Promise.all([
+      this.resolveServices(serviceIds),
+      this.qualifiedStaff(serviceIds, staffId),
+      BusinessHours.findAll(),
+      Appointment.findAll({
+        where: {
+          status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
+          startsAt: { [Op.lt]: windowEnd },
+          endsAt: { [Op.gt]: windowStart },
+        },
+        attributes: ['staffId', 'startsAt', 'endsAt'],
+        raw: true,
+      }).then((rows) => rows as unknown as AppointmentWindow[]),
+    ]);
     if (staff.length === 0) return { dates: [] };
 
-    const businessHours = await BusinessHours.findAll();
+    const qualifiedIds = new Set(staff.map((member) => member.id));
+    const booked = appointments.filter((appointment) => qualifiedIds.has(appointment.staffId));
+
     const hoursByDay = new Map(businessHours.map((hours) => [hours.dayOfWeek, hours]));
-    const today = todayLocalStr(tz);
-    const now = new Date();
-    const earliest = new Date(now.getTime() + settings.minBookingNoticeMinutes * 60_000);
 
     const dates: string[] = [];
     for (let offset = 0; offset <= settings.maxAdvanceBookingDays; offset++) {
@@ -153,16 +176,9 @@ export class AvailabilityService {
 
       const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
       const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
-      const appointments = (await Appointment.findAll({
-        where: {
-          staffId: { [Op.in]: staff.map((member) => member.id) },
-          status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
-          startsAt: { [Op.lt]: dayEnd },
-          endsAt: { [Op.gt]: dayStart },
-        },
-        attributes: ['staffId', 'startsAt', 'endsAt'],
-        raw: true,
-      })) as unknown as AppointmentWindow[];
+      const dayAppointments = booked.filter(
+        (appointment) => appointment.startsAt < dayEnd && appointment.endsAt > dayStart,
+      );
 
       const hasSlot = staff.some((member) => {
         const hours = member.workingHours.find((item) => item.dayOfWeek === weekday);
@@ -172,7 +188,7 @@ export class AvailabilityService {
           dateStr,
           durationMinutes,
           business,
-          appointments.filter((appointment) => appointment.staffId === member.id),
+          dayAppointments.filter((appointment) => appointment.staffId === member.id),
           settings.appointmentIntervalMinutes,
           earliest,
           tz,
@@ -200,25 +216,29 @@ export class AvailabilityService {
       throw new BadRequestException('Date is beyond the maximum advance booking period');
     }
 
-    const { durationMinutes } = await this.resolveServices(serviceIds);
-    const staff = await this.qualifiedStaff(serviceIds, staffId);
     const weekday = weekdayFromDateStr(dateStr);
-    const business = await BusinessHours.findOne({ where: { dayOfWeek: weekday } });
-
     const dayStart = zonedDateTimeToUtc(dateStr, 0, tz);
     const dayEnd = zonedDateTimeToUtc(addDaysToDateStr(dateStr, 1), 0, tz);
-    const appointments = staff.length
-      ? ((await Appointment.findAll({
-          where: {
-            staffId: { [Op.in]: staff.map((member) => member.id) },
-            status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
-            startsAt: { [Op.lt]: dayEnd },
-            endsAt: { [Op.gt]: dayStart },
-          },
-          attributes: ['staffId', 'startsAt', 'endsAt'],
-          raw: true,
-        })) as unknown as AppointmentWindow[])
-      : [];
+
+    // One parallel batch: services, staff, opening hours and the day's bookings
+    // do not depend on each other, so they share a single round trip.
+    const [{ durationMinutes }, staff, business, appointments] = await Promise.all([
+      this.resolveServices(serviceIds),
+      this.qualifiedStaff(serviceIds, staffId),
+      BusinessHours.findOne({ where: { dayOfWeek: weekday } }),
+      Appointment.findAll({
+        where: {
+          status: { [Op.in]: this.reservingStatuses(settings.pendingReservesTime) },
+          startsAt: { [Op.lt]: dayEnd },
+          endsAt: { [Op.gt]: dayStart },
+        },
+        attributes: ['staffId', 'startsAt', 'endsAt'],
+        raw: true,
+      }).then((rows) => rows as unknown as AppointmentWindow[]),
+    ]);
+
+    const qualifiedIds = new Set(staff.map((member) => member.id));
+    const booked = appointments.filter((appointment) => qualifiedIds.has(appointment.staffId));
 
     const earliest = new Date(Date.now() + settings.minBookingNoticeMinutes * 60_000);
     const slots: TimeSlot[] = [];
@@ -230,7 +250,7 @@ export class AvailabilityService {
           dateStr,
           durationMinutes,
           business,
-          appointments.filter((appointment) => appointment.staffId === member.id),
+          booked.filter((appointment) => appointment.staffId === member.id),
           settings.appointmentIntervalMinutes,
           earliest,
           tz,

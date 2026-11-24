@@ -88,9 +88,12 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
 
   const serviceName = (s: Service) => (lang === 'sv' ? s.nameSv : s.nameEn);
 
-  // Fetch available dates when entering the date step.
+  // Fetch available dates as soon as the staff step opens, so the calendar is
+  // usually ready before the visitor reaches it. One request per (service,
+  // staff) pair, reused when moving on to the date step.
+  const wantsDates = step >= 1 && step <= 2;
   useEffect(() => {
-    if (step !== 2 || serviceIds.length === 0) return;
+    if (!wantsDates || serviceIds.length === 0) return;
     const controller = new AbortController();
     setDatesLoading(true);
     setLoadError(null);
@@ -105,7 +108,7 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
       });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, serviceKey, staffId]);
+  }, [wantsDates, serviceKey, staffId]);
 
   const refreshSlots = useCallback(() => {
     if (!date || serviceIds.length === 0) return;
