@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { Facebook, Instagram, Mail, MapPin, Phone } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { minutesToTime } from '@/lib/format';
+import { DEFAULT_TZ } from '@/lib/format';
+import { useVisitorHours } from '@/lib/use-visitor-hours';
 import type { BusinessHours, PublicSettings } from '@/lib/types';
 
 interface FooterProps {
@@ -13,6 +14,10 @@ interface FooterProps {
 
 export function Footer({ settings, hours }: FooterProps) {
   const { t, lang, setLang } = useLanguage();
+  const { rows, visitorTz, salonTz, sameZone } = useVisitorHours(
+    hours,
+    settings?.timezone ?? DEFAULT_TZ,
+  );
   const year = new Date().getFullYear();
   const name = settings?.salonName ?? 'Salong Sweden';
 
@@ -98,17 +103,24 @@ export function Footer({ settings, hours }: FooterProps) {
         <div>
           <p className="eyebrow !text-gold">{t('footer.hours')}</p>
           <ul className="mt-5 space-y-2 text-sm">
-            {hours.length === 0 ? (
+            {rows.length === 0 ? (
               <li className="text-ivory/50">—</li>
             ) : (
-              hours.map((h) => (
-                <li key={h.dayOfWeek} className="flex justify-between gap-4 text-ivory/70">
-                  <span>{t(`day.${h.dayOfWeek}`)}</span>
+              rows.map((h) => (
+                <li key={h.dayIndex} className="flex justify-between gap-4 text-ivory/70">
+                  <span>{t(`day.${h.dayIndex}`)}</span>
                   <span className="tabular-nums text-ivory/90">
-                    {h.isClosed ? t('hours.closed') : `${minutesToTime(h.openMinutes)}–${minutesToTime(h.closeMinutes)}`}
+                    {h.isClosed
+                      ? t('hours.closed')
+                      : `${h.openTime}–${h.closeTime}${h.closeNextDay ? t('hours.nextDay') : ''}`}
                   </span>
                 </li>
               ))
+            )}
+            {!sameZone && rows.length > 0 && (
+              <li className="pt-3 text-xs leading-relaxed text-ivory/50">
+                {t('hours.yourTime', { visitor: visitorTz, salon: salonTz })}
+              </li>
             )}
           </ul>
         </div>

@@ -8,7 +8,8 @@ import { Check, Facebook, Instagram, Loader2, Mail, MapPin, Phone, Send } from '
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { publicApi } from '@/lib/api';
-import { minutesToTime } from '@/lib/format';
+import { DEFAULT_TZ } from '@/lib/format';
+import { useVisitorHours } from '@/lib/use-visitor-hours';
 import type { BusinessHours, PublicSettings } from '@/lib/types';
 
 const contactSchema = z.object({
@@ -26,6 +27,10 @@ interface ContactSectionProps {
 
 export function ContactSection({ settings, hours }: ContactSectionProps) {
   const { t } = useLanguage();
+  const { rows, visitorTz, salonTz, sameZone } = useVisitorHours(
+    hours,
+    settings?.timezone ?? DEFAULT_TZ,
+  );
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,15 +161,22 @@ export function ContactSection({ settings, hours }: ContactSectionProps) {
           <div className="card-luxe p-8">
             <p className="text-xs uppercase tracking-[0.12em] text-stone-light">{t('footer.hours')}</p>
             <ul className="mt-4 space-y-2 text-sm">
-              {hours.map((h) => (
-                <li key={h.dayOfWeek} className="flex justify-between gap-4">
-                  <span className="text-stone">{t(`day.${h.dayOfWeek}`)}</span>
+              {rows.map((h) => (
+                <li key={h.dayIndex} className="flex justify-between gap-4">
+                  <span className="text-stone">{t(`day.${h.dayIndex}`)}</span>
                   <span className="tabular-nums text-ink">
-                    {h.isClosed ? t('hours.closed') : `${minutesToTime(h.openMinutes)}–${minutesToTime(h.closeMinutes)}`}
+                    {h.isClosed
+                      ? t('hours.closed')
+                      : `${h.openTime}–${h.closeTime}${h.closeNextDay ? t('hours.nextDay') : ''}`}
                   </span>
                 </li>
               ))}
             </ul>
+            {!sameZone && rows.length > 0 && (
+              <p className="mt-4 text-xs leading-relaxed text-stone-light">
+                {t('hours.yourTime', { visitor: visitorTz, salon: salonTz })}
+              </p>
+            )}
           </div>
         </aside>
       </div>

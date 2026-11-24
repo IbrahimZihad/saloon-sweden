@@ -324,17 +324,27 @@ Set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SECURE`, `EMAIL_USER`, `EMAIL_PASSWORD` a
 
 ### Time zones
 
-All instants are stored in **UTC** and rendered in `Europe/Stockholm` with correct
-DST handling (`date-fns-tz`). The UI uses a 24-hour clock. Weekdays are indexed
-`0 = Monday … 6 = Sunday`; business hours are minutes-since-midnight.
+All instants are stored in **UTC**. The salon's schedule (business hours, staff
+hours, slots) is always interpreted in `Europe/Stockholm`; that is the source of
+truth. Weekdays are indexed `0 = Monday … 6 = Sunday`; business hours are
+minutes-since-midnight.
 
-Booking times are shown in salon time. The picker additionally drops any slot
-whose absolute `startsAt` is not after the visitor's device clock (checked on
-render and every 60 s), re-fetches when the tab regains focus, and both the API
-(`Cache-Control: no-store`) and the client (`cache: 'no-store'`) refuse to reuse
-availability responses, so a past time cannot remain selectable from a stale
-page. When the visitor's time zone differs, each slot also shows the equivalent
-device-local time.
+The public website renders times in the **visitor's** time zone:
+
+- Appointment slots, the booking summary, the confirmation page and the opening
+  hours in the footer/home/contact are converted with `date-fns-tz` from the
+  salon zone to `Intl.DateTimeFormat().resolvedOptions().timeZone` after mount
+  (the server render uses the salon zone, so there is no hydration mismatch).
+- When the visitor is in another zone, salon time is shown as a secondary line
+  and a note names both zones. Opening-hours rows keep the salon's weekday (its
+  business day) and flag a closing time that falls on the next local day.
+- The admin UI stays on salon time, because staff work at the salon.
+
+The picker drops any slot whose absolute `startsAt` is not after the visitor's
+device clock (checked on render and every 60 s), re-fetches when the tab regains
+focus, and both the API (`Cache-Control: no-store`) and the client
+(`cache: 'no-store'`) refuse to reuse availability responses, so a past time
+cannot remain selectable from a stale page.
 
 ### Auth & security
 

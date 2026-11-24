@@ -5,7 +5,8 @@ import { Clock, Mail, MapPin, Phone } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { Reveal } from '@/components/ui/Reveal';
-import { minutesToTime } from '@/lib/format';
+import { DEFAULT_TZ } from '@/lib/format';
+import { useVisitorHours } from '@/lib/use-visitor-hours';
 import type { BusinessHours, PublicSettings } from '@/lib/types';
 
 interface HoursVisitProps {
@@ -15,6 +16,10 @@ interface HoursVisitProps {
 
 export function HoursVisit({ hours, settings }: HoursVisitProps) {
   const { t } = useLanguage();
+  const { rows, visitorTz, salonTz, sameZone } = useVisitorHours(
+    hours,
+    settings?.timezone ?? DEFAULT_TZ,
+  );
   const location = [settings?.address, settings?.postalCode, settings?.city].filter(Boolean).join(', ');
   const mapSearch = location || settings?.salonName || '';
   const mapEmbedUrl =
@@ -36,23 +41,28 @@ export function HoursVisit({ hours, settings }: HoursVisitProps) {
               <h3 className="font-serif text-2xl">{t('hours.eyebrow')}</h3>
             </div>
             <ul className="mt-7 divide-y divide-line">
-              {hours.length === 0 ? (
+              {rows.length === 0 ? (
                 <li className="py-3 text-stone">—</li>
               ) : (
-                hours.map((h) => (
-                  <li key={h.dayOfWeek} className="flex items-center justify-between py-3.5">
-                    <span className="text-sm text-stone">{t(`day.${h.dayOfWeek}`)}</span>
+                rows.map((h) => (
+                  <li key={h.dayIndex} className="flex items-center justify-between py-3.5">
+                    <span className="text-sm text-stone">{t(`day.${h.dayIndex}`)}</span>
                     <span className="text-sm tabular-nums text-ink">
                       {h.isClosed ? (
                         <span className="text-stone-light">{t('hours.closed')}</span>
                       ) : (
-                        `${minutesToTime(h.openMinutes)} – ${minutesToTime(h.closeMinutes)}`
+                        `${h.openTime} – ${h.closeTime}${h.closeNextDay ? t('hours.nextDay') : ''}`
                       )}
                     </span>
                   </li>
                 ))
               )}
             </ul>
+            {!sameZone && rows.length > 0 && (
+              <p className="mt-4 text-xs leading-relaxed text-stone-light">
+                {t('hours.yourTime', { visitor: visitorTz, salon: salonTz })}
+              </p>
+            )}
             <Link href="/booking" className="btn btn-primary mt-8 w-full">
               {t('hours.bookCta')}
             </Link>

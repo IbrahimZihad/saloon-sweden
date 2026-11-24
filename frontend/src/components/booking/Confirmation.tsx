@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { CalendarCheck, MapPin, Scissors, User } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { formatLocalDateTime, formatMoney } from '@/lib/format';
 import { DEFAULT_TZ } from '@/lib/format';
+import { deviceTimeZone } from '@/lib/timezone';
 import type { Appointment, PublicSettings } from '@/lib/types';
 
 interface ConfirmationProps {
@@ -15,6 +17,12 @@ interface ConfirmationProps {
 export function Confirmation({ appointment, settings }: ConfirmationProps) {
   const { t, lang } = useLanguage();
   const tz = settings?.timezone ?? DEFAULT_TZ;
+  // The appointment is shown in the visitor's zone, with salon time as a note.
+  const [deviceTz, setDeviceTz] = useState<string | null>(null);
+  useEffect(() => {
+    setDeviceTz(deviceTimeZone());
+  }, []);
+  const displayTz = deviceTz ?? tz;
 
   return (
     <div className="container-luxe flex flex-col items-center pb-24 pt-36 text-center lg:pb-32 lg:pt-44">
@@ -32,7 +40,14 @@ export function Confirmation({ appointment, settings }: ConfirmationProps) {
         </div>
         <div className="space-y-5 px-7 py-7">
           <Detail icon={CalendarCheck} label={t('confirmation.when')}>
-            <span className="capitalize">{formatLocalDateTime(appointment.startsAt, tz, lang)}</span>
+            <span className="capitalize">{formatLocalDateTime(appointment.startsAt, displayTz, lang)}</span>
+            {deviceTz && deviceTz !== tz && (
+              <span className="mt-1 block text-xs text-stone-light">
+                {t('confirmation.salonTime', {
+                  time: formatLocalDateTime(appointment.startsAt, tz, lang),
+                })}
+              </span>
+            )}
           </Detail>
           <Detail icon={User} label={t('confirmation.with')}>
             {appointment.staff.name}

@@ -10,7 +10,8 @@ import { ArrowLeft, ArrowRight, Check, Clock, Loader2, User } from 'lucide-react
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { BookingCalendar } from '@/components/booking/BookingCalendar';
 import { detailsSchema, type DetailsForm } from '@/lib/booking-schema';
-import { filterBookableSlots, deviceTimeZone } from '@/lib/slots';
+import { filterBookableSlots } from '@/lib/slots';
+import { deviceTimeZone } from '@/lib/timezone';
 import { publicApi, ApiError } from '@/lib/api';
 import { DEFAULT_TZ, formatDateStr, formatDuration, formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -159,6 +160,15 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
     () => dates.filter((d) => d >= todayStr && d <= maxDateStr),
     [dates, todayStr, maxDateStr],
   );
+
+  // Appointment times are shown in the visitor's zone; salon time is kept as a
+  // secondary reference whenever the two differ.
+  const displayTz = deviceTz ?? tz;
+  const showSalonTime = Boolean(deviceTz && deviceTz !== tz);
+  const slotRange = (zone: string) =>
+    slot
+      ? `${formatInTimeZone(new Date(slot.startsAt), zone, 'HH:mm')}–${formatInTimeZone(new Date(slot.endsAt), zone, 'HH:mm')}`
+      : '';
 
   // A slot chosen earlier may have passed or been taken while the tab was open.
   useEffect(() => {
@@ -430,7 +440,11 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
             <div className="animate-fade-in">
               <h2 className="font-serif text-3xl">{t('booking.time.title')}</h2>
               {date && <p className="mt-2 text-sm capitalize text-stone">{formatDateStr(date, lang)}</p>}
-              <p className="mt-1 text-xs text-stone-light">{t('booking.time.timezoneNote', { tz })}</p>
+              {deviceTz && deviceTz !== tz && (
+                <p className="mt-1 text-xs text-stone-light">
+                  {t('booking.time.timezoneNote', { visitor: deviceTz, salon: tz })}
+                </p>
+              )}
               <div className="mt-8">
                 {slotsLoading ? (
                   <Loading label={t('booking.time.loading')} />
@@ -452,11 +466,13 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
                             : 'border-line bg-white text-ink hover:border-sand-dark',
                         )}
                       >
-                        <span className="block text-sm tabular-nums">{s.startTime}</span>
+                        <span className="block text-sm tabular-nums">
+                          {deviceTz ? formatInTimeZone(new Date(s.startsAt), deviceTz, 'HH:mm') : s.startTime}
+                        </span>
                         {deviceTz && deviceTz !== tz && (
                           <span className="mt-0.5 block text-[0.62rem] opacity-70">
-                            {t('booking.time.otherTime', {
-                              time: formatInTimeZone(new Date(s.startsAt), deviceTz, 'HH:mm'),
+                            {t('booking.time.salonTime', {
+                              time: formatInTimeZone(new Date(s.startsAt), tz, 'HH:mm'),
                             })}
                           </span>
                         )}
@@ -524,7 +540,18 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
                 </Row>
                 <Row label={t('booking.confirm.staff')}>{slot?.staffName ?? staffLabel}</Row>
                 <Row label={t('booking.confirm.date')}>{date ? formatDateStr(date, lang) : ''}</Row>
-                <Row label={t('booking.confirm.time')}>{slot ? `${slot.startTime} – ${slot.endTime}` : ''}</Row>
+                <Row label={t('booking.confirm.time')}>
+                  {slot ? (
+                    <>
+                      {slotRange(displayTz)}
+                      {showSalonTime && (
+                        <span className="ml-2 text-xs text-stone-light">
+                          ({t('booking.time.salonTime', { time: slotRange(tz) })})
+                        </span>
+                      )}
+                    </>
+                  ) : null}
+                </Row>
                 <Row label={t('booking.confirm.duration')}>{formatDuration(totalDuration, lang)}</Row>
                 <Row label={t('booking.confirm.total')}>
                   <span className="font-serif text-xl text-gold-dark">{formatMoney(totalPrice, lang)}</span>
@@ -588,7 +615,14 @@ export function BookingWizard({ services, staff, settings }: BookingWizardProps)
             </div>
             <div className="flex justify-between gap-3">
               <span className="text-xs uppercase tracking-[0.12em] text-stone-light">{t('booking.confirm.time')}</span>
-              <span className="tabular-nums">{slot ? slot.startTime : '—'}</span>
+              <span className="text-right tabular-nums">
+                {slot ? slotRange(displayTz) : '—'}
+                {showSalonTime && slot && (
+                  <span className="mt-0.5 block text-[0.65rem] text-stone-light">
+                    {t('booking.time.salonTime', { time: slotRange(tz) })}
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           <div className="mt-6 flex items-center justify-between border-t border-line pt-5">

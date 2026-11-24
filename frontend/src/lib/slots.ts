@@ -34,12 +34,3 @@ export function filterBookableSlots<T extends StartAware>(
 ): T[] {
   return slots.filter((slot) => isSlotBookable(slot, nowMs));
 }
-
-/** The device's IANA time zone, or null when the runtime cannot report one. */
-export function deviceTimeZone(): string | null {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
-  } catch {
-    return null;
-  }
-}
